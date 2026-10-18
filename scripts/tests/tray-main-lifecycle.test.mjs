@@ -35,7 +35,13 @@ describe('Main tray lifecycle contract', () => {
     const exits = []
     let stopCalls = 0
     let finishStop
+    let finishRoutine
+    let finishChat
+    let finishRemote
     const stopping = new Promise((resolve) => { finishStop = resolve })
+    const routineStopping = new Promise((resolve) => { finishRoutine = () => resolve({ settled: true }) })
+    const chatStopping = new Promise((resolve) => { finishChat = () => resolve({ settled: true }) })
+    const remoteStopping = new Promise((resolve) => { finishRemote = resolve })
     const app = {
       on: (event, handler) => handlers.set(event, handler),
       quit: () => handlers.get('before-quit')({ preventDefault() {} }),
@@ -51,7 +57,12 @@ describe('Main tray lifecycle contract', () => {
       console,
       guardAppQuit: () => true,
       destroyAppTray() {},
+      shutdownSshWorkspace() {},
       workerManager: { stop: () => { stopCalls += 1; return stopping } },
+      routineRuntime: { shutdown: () => routineStopping },
+      chatRuntime: { shutdown: () => chatStopping },
+      remoteCodeRuntime: { shutdown: () => remoteStopping },
+      remoteTerminalCount: () => 0,
       sessionPreviewProcess: { stop() {} },
       disposeCompletionNotifications() {},
       shutdownTerminals() {},
@@ -69,7 +80,16 @@ describe('Main tray lifecycle contract', () => {
 
     finishStop()
     await new Promise((resolve) => setImmediate(resolve))
-    assert.ok(exits.length > 0, 'app exits after the shared shutdown completes')
+    assert.deepEqual(exits, [], 'worker flush must not bypass unfinished product runtimes')
+    finishRoutine()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(exits, [], 'routine flush must not bypass unfinished Chat cleanup')
+    finishChat()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(exits, [], 'Chat cleanup must not bypass unfinished SSH Code cleanup')
+    finishRemote()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.ok(exits.length > 0, 'app exits after all shared shutdowns complete')
     assert.ok(exits.every((code) => code === 0))
   })
 })

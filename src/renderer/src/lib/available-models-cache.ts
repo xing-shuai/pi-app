@@ -1,10 +1,12 @@
 import type { ModelInfo } from '@shared/ipc-contract'
 import { ipcClient } from '@renderer/lib/ipc-client'
+import { modelLoadFailure } from './model-load-error'
 
 let snapshot: ModelInfo[] = []
 let inFlight: { generation: number; promise: Promise<ModelInfo[]> } | null = null
 let generation = 0
 let invalidated = true
+let lastError: string | null = null
 const listeners = new Set<(models: ModelInfo[]) => void>()
 
 /**
@@ -33,6 +35,7 @@ function scheduleEmptyRetry(): void {
 export function peekAvailableModels(): ModelInfo[] {
   return snapshot
 }
+export function peekAvailableModelsError(): string | null { return lastError }
 
 /** True while a request is in flight or an empty list is about to be retried. */
 export function isAvailableModelsPending(): boolean {
@@ -55,6 +58,7 @@ export function refreshAvailableModels(): Promise<ModelInfo[]> {
     .then((res) => {
       if (inFlight?.promise === promise) inFlight = null
       if (requestGeneration !== generation) return snapshot
+      lastError = null
       snapshot = Array.isArray(res?.models) ? res.models : []
       if (snapshot.length > 0) {
         emptyRetries = 0
@@ -70,7 +74,10 @@ export function refreshAvailableModels(): Promise<ModelInfo[]> {
       if (inFlight?.promise === promise) inFlight = null
       if (requestGeneration === generation) {
         invalidated = true
-        if (snapshot.length === 0) scheduleEmptyRetry()
+        const failure = modelLoadFailure(error)
+        lastError = failure.message
+        if (failure.permanent) clearEmptyRetry()
+        else if (snapshot.length === 0) scheduleEmptyRetry()
         // Same snapshot, but the pending state changed.
         for (const listener of listeners) listener(snapshot)
       }
@@ -107,8 +114,17 @@ export function ensureCatalogModels(): Promise<ModelInfo[]> {
 export function invalidateAvailableModels(): void {
   generation += 1
   invalidated = true
+  lastError = null
   emptyRetries = 0
   clearEmptyRetry()
+}
+
+/** A host switch is a security/data boundary, not a refresh of the same provider runtime. */
+export function resetAvailableModelsForEnvironment(): void {
+  invalidateAvailableModels()
+  snapshot = []
+  catalog = null
+  for (const listener of listeners) listener(snapshot)
 }
 
 export function prefetchAvailableModels(): void {
@@ -120,6 +136,7 @@ export function clearAvailableModelsCacheForTests(): void {
   inFlight = null
   generation = 0
   invalidated = true
+  lastError = null
   catalog = null
   emptyRetries = 0
   clearEmptyRetry()

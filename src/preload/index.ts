@@ -3,6 +3,11 @@ import type { AppEvent } from '@shared/app-events'
 import { CUSTOM_THEME_DISABLED_RENDERER_ARGUMENT } from '@shared/custom-theme'
 import { isAllowedIpcChannel } from '@shared/ipc-channels'
 import { BROWSER_EVENT_CHANNEL, type BrowserEvent } from '@shared/browser-types'
+import type { SshWorkspaceEvent } from '@shared/ssh-workspace'
+import { REMOTE_CODE_EVENT_CHANNEL, type RemoteCodeEnvironmentEvent } from '@shared/remote-code'
+import { SSH_EVENT_CHANNEL } from '@shared/ssh-event-channel'
+import { CHAT_EVENT_CHANNEL, type ChatEvent } from '@shared/chat-types'
+import { ROUTINE_EVENT_CHANNEL, type RoutineEvent } from '@shared/routine-types'
 
 const EVENTS_CHANNEL = 'ipc:events'
 const WORKER_EXIT_CHANNEL = 'ipc:worker-exit'
@@ -82,6 +87,30 @@ const api = {
     const handler = (_event: unknown, data: unknown): void => callback(data)
     ipcRenderer.on(APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL, handler)
     return () => ipcRenderer.off(APP_UPDATE_DOWNLOAD_PROGRESS_CHANNEL, handler)
+  },
+
+  onChatEvent(callback: (event: ChatEvent) => void): () => void {
+    const handler = (_event: unknown, data: ChatEvent): void => callback(data)
+    ipcRenderer.on(CHAT_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.off(CHAT_EVENT_CHANNEL, handler)
+  },
+
+  onRoutineEvent(callback: (event: RoutineEvent) => void): () => void {
+    const handler = (_event: unknown, data: RoutineEvent): void => callback(data)
+    ipcRenderer.on(ROUTINE_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.off(ROUTINE_EVENT_CHANNEL, handler)
+  },
+
+  onCodeEnvironmentEvent(callback: (event: RemoteCodeEnvironmentEvent) => void): () => void {
+    const handler = (_event: unknown, data: RemoteCodeEnvironmentEvent): void => callback(data)
+    ipcRenderer.on(REMOTE_CODE_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.off(REMOTE_CODE_EVENT_CHANNEL, handler)
+  },
+
+  onSshEvent(callback: (event: SshWorkspaceEvent) => void): () => void {
+    const handler = (_event: unknown, data: SshWorkspaceEvent): void => callback(data)
+    ipcRenderer.on(SSH_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.off(SSH_EVENT_CHANNEL, handler)
   },
 
   onBrowserEvent(callback: (event: BrowserEvent) => void): () => void {

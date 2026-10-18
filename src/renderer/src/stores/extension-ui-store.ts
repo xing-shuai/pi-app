@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearExtensionDialogDedupe } from '@renderer/lib/extension-ui-dialog-dedupe'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -9,7 +10,7 @@ export type ExtensionUIPending =
   | { id: string; method: 'ask_user_question'; questions: AskQuestionPayload[]; sessionFile?: string }
   | { id: string; method: 'select'; title: string; options: string[]; sessionFile?: string }
   | { id: string; method: 'confirm'; title: string; message: string; sessionFile?: string }
-  | { id: string; method: 'input'; title: string; placeholder?: string; sessionFile?: string }
+  | { id: string; method: 'input'; title: string; placeholder?: string; defaultValue?: string; sessionFile?: string }
   | { id: string; method: 'image_review'; payload: ImageReviewPayload; sessionFile?: string }
 
 export type ExtensionUISuspended = {
@@ -177,7 +178,7 @@ export const useExtensionUIStore = create<ExtensionUIState>((set, get) => ({
     cancelPendingDialog('session-reset')
     syncWaitingUi(pendingFile, false)
     set({ activePending: null, suspended: null })
-    void import('@renderer/lib/extension-ui-channel').then((m) => m.clearExtensionDialogDedupe())
+    clearExtensionDialogDedupe()
   },
 }))
 

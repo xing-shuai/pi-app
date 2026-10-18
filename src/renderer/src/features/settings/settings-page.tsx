@@ -5,7 +5,8 @@ import { useUIStore } from '@renderer/stores/ui-store'
 import { ExtensionConfigSubpage } from '@renderer/features/extension-ui/extension-config-subpage'
 import { ModelsSettingsPanel } from '@renderer/features/settings/models-settings-panel'
 import { SlidersHorizontal, Palette, Cpu, Puzzle, Zap, MessageSquareText, Mic,
-  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, Smartphone, type AppIconComponent, Activity } from '@renderer/components/icons'
+  Cable, ChevronLeft, LayoutPanelLeft, Boxes, Search, X, Plug, Network, Smartphone, type AppIconComponent, Activity,
+  Users, ShieldCheck, KeyRound, Monitor, Terminal, Globe, Brain, Settings } from '@renderer/components/icons'
 import { SkillsSettingsPanel } from '@renderer/features/settings/skills-settings-panel'
 import { McpSettingsPanel } from '@renderer/features/settings/mcp-settings-panel'
 import { ModelRoutingPanel } from '@renderer/features/settings/model-routing-panel'
@@ -28,9 +29,46 @@ import { ExtensionsSettings } from '@renderer/features/settings/settings-extensi
 import { SettingsSearchContext } from './settings-page-shared'
 import { AdaptersSettings } from '@renderer/features/settings/settings-adapters-panel'
 
-type SettingsPage = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice' | 'mobile' | 'usage'
+export type SettingsPageKey = 'general' | 'appearance' | 'rightPanels' | 'pi' | 'models' | 'skills' | 'prompts' | 'extensions' | 'mcp' | 'routing' | 'adapters' | 'voice' | 'mobile' | 'usage'
 
-type NavGroup = { key: string; labelKey: string; pages: { key: SettingsPage; icon: AppIconComponent }[] }
+type NavGroup = { key: string; labelKey: string; pages: { key: SettingsPageKey; icon: AppIconComponent }[] }
+type ReferenceNavItem = { label: string; page?: SettingsPageKey; icon: AppIconComponent; detail?: string; unavailable?: string }
+
+/** Reference categories route only to implemented local settings, never simulated cloud pages. */
+const REFERENCE_NAV_GROUPS: { label: string; pages: ReferenceNavItem[] }[] = [
+  { label: 'Settings', pages: [
+    { label: 'General', page: 'general', icon: Settings },
+    { label: 'Account', icon: Users, unavailable: 'Local profile only; cloud account management is unavailable' },
+    { label: 'Privacy', icon: ShieldCheck, unavailable: 'A dedicated privacy settings page is not implemented' },
+    { label: 'Billing', icon: KeyRound, unavailable: 'Billing is managed directly with your model provider' },
+    { label: 'Usage', page: 'usage', icon: Activity },
+    { label: 'Capabilities', page: 'rightPanels', icon: LayoutPanelLeft, detail: 'Right panels' },
+    { label: 'Memory', icon: Brain, unavailable: 'Persistent memory settings are not implemented' },
+    { label: 'Design systems', icon: Palette, unavailable: 'Design system management is not implemented; use Appearance below for app themes' },
+    { label: 'Code', page: 'pi', icon: Terminal, detail: 'Runtime' },
+    { label: 'Chrome', icon: Globe, unavailable: 'A Chrome extension integration is not implemented' },
+  ] },
+  { label: 'This computer', pages: [
+    { label: 'System', icon: Monitor, unavailable: 'Operating system settings are managed outside Pi Desktop' },
+    { label: 'Extensions', page: 'extensions', icon: Puzzle },
+    { label: 'Developer', page: 'adapters', icon: Cable, detail: 'Adapters' },
+  ] },
+  { label: 'Customize', pages: [
+    { label: 'Skills', page: 'skills', icon: Zap },
+    { label: 'Connectors', page: 'mcp', icon: Plug, detail: 'MCP' },
+    { label: 'Plugins', icon: Puzzle, unavailable: 'A plugin marketplace is not implemented; manage Pi extensions under Extensions' },
+  ] },
+  { label: 'Platform', pages: [
+    { label: 'API keys', page: 'models', icon: KeyRound, detail: 'Models' },
+  ] },
+  { label: 'More settings', pages: [
+    { label: 'Appearance', page: 'appearance', icon: Palette },
+    { label: 'Routing', page: 'routing', icon: Network },
+    { label: 'Voice', page: 'voice', icon: Mic },
+    { label: 'Prompts', page: 'prompts', icon: MessageSquareText },
+    { label: 'Mobile', page: 'mobile', icon: Smartphone },
+  ] },
+]
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -67,11 +105,11 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-const WIDE_PAGES: SettingsPage[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice']
+const WIDE_PAGES: SettingsPageKey[] = ['rightPanels', 'pi', 'models', 'skills', 'prompts', 'extensions', 'mcp', 'routing', 'adapters', 'voice']
 
-export function SettingsPage() {
+export function SettingsPage({ initialPage = 'general', referenceLayout = false }: { initialPage?: SettingsPageKey; referenceLayout?: boolean } = {}) {
   const { t } = useTranslation()
-  const [page, setPage] = useState<SettingsPage>('general')
+  const [page, setPage] = useState<SettingsPageKey>(initialPage)
   const [settingsQuery, setSettingsQuery] = useState('')
   const [configExt, setConfigExt] = useState<string | null>(null)
   const pendingExtensionConfig = useUIStore((s) => s.pendingExtensionConfig)
@@ -83,7 +121,14 @@ export function SettingsPage() {
     void ipcClient.invoke('adapters.json.catalog', { refresh: true, workspaceId: useUIStore.getState().currentWorkspace || '' }).catch(() => {})
   }, [])
 
-  // B-layer slash config-page routing -> open embedded config subpage
+  useEffect(() => {
+    setPage(initialPage)
+    setConfigExt(null)
+    setSettingsQuery('')
+  }, [initialPage])
+
+  // B-layer slash config-page routing -> open embedded config subpage.
+  // Keep this after parent navigation so a pending extension request wins on mount.
   useEffect(() => {
     if (pendingExtensionConfig) {
       setConfigExt(pendingExtensionConfig)
@@ -93,6 +138,14 @@ export function SettingsPage() {
   }, [pendingExtensionConfig, requestExtensionConfig])
 
   const wide = WIDE_PAGES.includes(page)
+  const filteredReferenceGroups = useMemo(() => {
+    const query = settingsQuery.trim().toLocaleLowerCase()
+    return REFERENCE_NAV_GROUPS.map((group) => ({ ...group, pages: group.pages.filter((item) => {
+      if (!query) return true
+      const text = `${item.label} ${item.detail ?? ''} ${item.page ?? ''} ${item.page ? JSON.stringify(t(`settings:${item.page}`, { returnObjects: true })) : ''} ${item.page === 'general' ? JSON.stringify(t('common:shortcuts', { returnObjects: true })) : ''}`
+      return text.toLocaleLowerCase().includes(query)
+    }) })).filter((group) => group.pages.length > 0)
+  }, [settingsQuery, t])
   const filteredGroups = useMemo(() => {
     const query = settingsQuery.trim().toLocaleLowerCase()
     return NAV_GROUPS.map((group) => ({ ...group, pages: group.pages.filter((item) => {
@@ -101,7 +154,9 @@ export function SettingsPage() {
       return text.toLocaleLowerCase().includes(query)
     }) })).filter((group) => group.pages.length > 0)
   }, [settingsQuery, t])
-  const pages = filteredGroups.flatMap((group) => group.pages)
+  const pages = referenceLayout
+    ? filteredReferenceGroups.flatMap((group) => group.pages.flatMap((item) => item.page ? [{ key: item.page, icon: item.icon }] : []))
+    : filteredGroups.flatMap((group) => group.pages)
   const selectedVisible = pages.some((item) => item.key === page)
   const firstMatch = pages[0]?.key
   useEffect(() => {
@@ -111,14 +166,22 @@ export function SettingsPage() {
   return (
     <SettingsDraftProvider>
       <SettingsSearchContext.Provider value={settingsQuery}>
-      <div className="settings-layout flex h-full min-h-0 w-full overflow-hidden">
+      <div className="settings-layout flex h-full min-h-0 w-full overflow-hidden" data-settings-layout={referenceLayout ? 'reference' : 'embedded'} data-settings-active-page={page}>
         <SettingsNav title={t('settings:title')}>
           <div className="workbench-search mx-1">
             <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
             <input type="search" value={settingsQuery} aria-label={t('settings:search')} placeholder={t('settings:search')} onChange={(event) => { setSettingsQuery(event.target.value); setConfigExt(null) }} />
             {settingsQuery && <button type="button" className="workbench-icon" aria-label={t('common:sidebar.clearSearch')} onClick={() => setSettingsQuery('')}><X className="h-3.5 w-3.5" /></button>}
           </div>
-          {filteredGroups.map((group) => (
+          {referenceLayout ? filteredReferenceGroups.map((group) => (
+            <SettingsNavGroup key={group.label} label={group.label}>
+              {group.pages.map((item) => <SettingsNavItem key={item.label} active={item.page === page} icon={item.icon} label={item.label} detail={item.detail} pageKey={item.page} disabled={!item.page} title={item.unavailable ?? item.detail} onClick={() => {
+                if (!item.page) return
+                setConfigExt(null)
+                setPage(item.page)
+              }} />)}
+            </SettingsNavGroup>
+          )) : filteredGroups.map((group) => (
             <SettingsNavGroup key={group.key} label={t(group.labelKey)}>
               {group.pages.map((p) => (
                 <SettingsNavItem
@@ -126,6 +189,7 @@ export function SettingsPage() {
                   active={page === p.key}
                   icon={p.icon}
                   label={t(`settings:nav.${p.key}`)}
+                  pageKey={p.key}
                   onClick={() => {
                     setConfigExt(null)
                     setPage(p.key)

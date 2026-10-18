@@ -1,11 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { MAX_PANES, MIN_PANE_SHARE, tabTitle, terminalActions, useTerminalStore, type TerminalPaneState } from './terminal-store'
 
 const pane = (id: string, name = 'bash'): TerminalPaneState => ({ ptyId: id, profile: { id: name, name, path: `/bin/${name}`, args: [], kind: name } })
 const tab = () => useTerminalStore.getState().tabs[0]
 
 describe('terminal store splits', () => {
-  beforeEach(() => useTerminalStore.setState({ open: false, tabs: [], activeTab: null }))
+  beforeEach(() => {
+    useUIStore.setState({ currentWorkspace: null })
+    useTerminalStore.setState({ open: false, inputEnabled: true, tabs: [], activeTab: null, activeTabByWorkspace: {} })
+  })
 
   it('inserts a split right of the focused pane, up to MAX_PANES, with equal widths', () => {
     const id = terminalActions.addTab(pane('a'))

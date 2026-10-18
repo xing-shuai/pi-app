@@ -1,4 +1,5 @@
 import { app, powerSaveBlocker, dialog } from 'electron'
+import { userInfo } from 'node:os'
 import { registerHandler, registerHandlerWithSchema } from '../registry'
 import { z } from 'zod'
 import { workspacePathsEqual } from '@shared/workspace-path'
@@ -16,6 +17,7 @@ import { peekBrowserHost } from '../../browser/browser-host'
 let sleepBlocker: number | null = null
 
 export function registerDesktopChromeHandlers(): void {
+  registerHandler('ipc:app.quit', async () => { setImmediate(() => app.quit()); return { ok: true } })
   registerHandler('ipc:notifications.inbox', async () => ({ items: listCompletionInbox() }))
   registerHandler('ipc:notifications.markUnread', async (req) => {
     markCompletionInboxUnread(String(req.id || ''), req.unread !== false)
@@ -83,9 +85,17 @@ export function registerDesktopChromeHandlers(): void {
   })
 
   registerHandler('ipc:desktop.appName', async () => ({ name: app.getName(), version: app.getVersion() }))
+  registerHandler('ipc:desktop.identity', async () => {
+    try { return { userName: userInfo().username } } catch { return { userName: 'Local user' } }
+  })
   // Renderer shell has painted: start background warm-up (kept off the first-paint path).
   registerHandler('ipc:app.shellReady', async () => {
     setTimeout(() => void import('../../startup-warmup').then((m) => m.runStartupWarmup()), 300)
+    return { ok: true }
+  })
+
+  registerHandler('ipc:app.codeReady', async () => {
+    void import('../../startup-warmup').then((m) => m.enableCodeWarmup())
     return { ok: true }
   })
 

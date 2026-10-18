@@ -84,6 +84,7 @@ export function registerSessionHandlers(): void {
   registerHandler('ipc:session.open', async (req) => {
     const sessionId = req.sessionId
     if (req.sessionFile) {
+      setPendingEphemeralSandboxDraft(false)
       setPendingWorkerSessionFile(req.sessionFile)
       workerManager.focusExistingSession(req.sessionFile)
     }
@@ -104,6 +105,7 @@ export function registerSessionHandlers(): void {
     const sessionFile = req.sessionFile ?? null
     setPendingWorkerSessionFile(sessionFile)
     if (sessionFile) {
+      setPendingEphemeralSandboxDraft(false)
       const hasLiveSlot = workerManager.focusExistingSession(sessionFile)
       // Eagerly load only when the session already has a live worker slot so the
       // composer model/context refresh from the correct runtime state after switching.
@@ -131,7 +133,7 @@ export function registerSessionHandlers(): void {
       if (req.bind !== false) setPendingWorkerSessionFile(null)
       return { bound: false, sessionId: null as string | null }
     }
-    if (req.bind !== false) setPendingWorkerSessionFile(sessionFile)
+    if (req.bind !== false) { setPendingEphemeralSandboxDraft(false); setPendingWorkerSessionFile(sessionFile) }
     const prepared = await resolvePreparedSessionFile(sessionFile, (workspaceId) =>
       sessionPreviewProcess.listSessions(workspaceId),
     )
@@ -314,6 +316,8 @@ export function registerSessionHandlers(): void {
     }
     setPendingWorkerSessionFile(null)
     const result = await workerManager.newSession(workspaceId)
+    // A real session now exists. A prior home/sandbox placeholder must not veto its first prompt.
+    setPendingEphemeralSandboxDraft(false)
     await sessionPreviewProcess.invalidateListSessions(workspaceId)
     const state = await workerManager.getState().catch(() => ({}))
     const sessionFile =

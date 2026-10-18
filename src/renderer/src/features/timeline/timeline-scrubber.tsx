@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useCodeWorkspaceActive } from '@renderer/features/shell/workspace-activity'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { getTimelineScrollEl } from './timeline-scroll-bridge'
 import { requestTimelineViewEntry } from './timeline-view-jump'
@@ -12,6 +13,7 @@ import { activeMark, magnify, markY, nearestMark, scrubberMarks } from './timeli
  * session leaf, branch and composer never change.
  */
 function TimelineScrubberImpl() {
+  const workspaceActive = useCodeWorkspaceActive()
   const { t } = useTranslation()
   const items = useUIStore((s) => s.timelineItems)
   const marks = useMemo(() => scrubberMarks(items), [items])
@@ -94,7 +96,7 @@ function TimelineScrubberImpl() {
   // Alt+↑ / Alt+↓: previous / next user message from anywhere in the window.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
+      if (!workspaceActive || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return
       if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
       if (marksRef.current.length < 2) return
       e.preventDefault()
@@ -104,7 +106,7 @@ function TimelineScrubberImpl() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [jump])
+  }, [jump, workspaceActive])
 
   if (marks.length < 2) return null
 

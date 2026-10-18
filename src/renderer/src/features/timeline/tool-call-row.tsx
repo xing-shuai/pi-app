@@ -86,14 +86,14 @@ function ToolCallRowImpl({
   const hasToolBody = !!(item.toolOutput || item.toolDetails || item.toolArgs || item.toolDetail)
   const autoExpanded = autoExpandedInBudget && agentRunning && isCurrentRun && hasToolBody
   const expanded =
-    localExpanded ?? rememberedExpanded ?? autoExpanded
+    localExpanded ?? rememberedExpanded ?? (item.isError || autoExpanded)
   const mcpTool = useMemo(
     () => (resolveAdapterToolCardTemplate(item.toolName) ? null : resolveMcpTool(item.toolName, item.toolDetails, item.toolArgs)),
     [item.toolName, item.toolDetails, item.toolArgs],
   )
   const argSummary = mcpTool ? mcpArgSummary(item.toolArgs) : toolArgSummary(item)
   const skillContext = resolveSkillContextActivity(item.toolName || '', item.toolArgs, item.toolDetail)
-  const liveStatus = isRunning && item.toolStatusLine ? String(item.toolStatusLine) : null
+  const liveStatus = (isRunning || item.isError) && item.toolStatusLine ? String(item.toolStatusLine) : null
   const diffStats = useMemo(() => countToolDiffStats(item), [item])
 
   const primaryLabel = useMemo(() => {
@@ -127,44 +127,33 @@ function ToolCallRowImpl({
 
   return (
     <div className={cn('tool-call-row', compact ? 'py-0' : 'py-0')}>
-      <button
-        type="button"
-        title={skillContext ? primaryLabel : item.toolName || undefined}
-        aria-expanded={!!expanded && hasToolBody}
-        onClick={toggleExpanded}
-        className={cn(
-          'group timeline-activity-row tool-call-row-hit px-0.5 py-0 w-full',
-          hasToolBody && 'cursor-pointer',
-          !hasToolBody && 'cursor-default',
-          isRunning && 'tool-call-row-hit--live',
-          item.isError && !isRunning && 'tool-call-row-hit--error',
-        )}
-      >
-        {hasToolBody ? (
-          <ChevronRight
-            className="chevron-expand h-3 w-3 shrink-0 timeline-text-placeholder"
-            data-open={expanded ? 'true' : 'false'}
-          />
-        ) : (
-          <span className="w-3 shrink-0" aria-hidden />
-        )}
-        {skillContext ? (
-          <BookOpen className="h-3 w-3 shrink-0 text-primary/75" strokeWidth={1.8} />
-        ) : (
-          <ToolIcon name={item.toolName || ''} className="h-3 w-3 shrink-0 timeline-text-quiet" />
-        )}
-        {item.extensionUiSuspended ? (
-          <button
-            type="button"
-            className="ml-1 shrink-0 rounded-sm px-1.5 py-0.5 text-[11px] timeline-text-secondary hover:bg-[var(--bg-hover)]"
-            onClick={(event) => {
-              event.stopPropagation()
-              useExtensionUIStore.getState().resumeSuspended()
-            }}
-          >
-            {t('timeline:continueAnswering')}
-          </button>
-        ) : (
+      <div className="timeline-tool-heading flex items-center gap-2">
+        <button
+          type="button"
+          title={skillContext ? primaryLabel : item.toolName || undefined}
+          aria-expanded={!!expanded && hasToolBody}
+          onClick={toggleExpanded}
+          className={cn(
+            'group timeline-activity-row tool-call-row-hit px-0.5 py-0 w-full',
+            hasToolBody && 'cursor-pointer',
+            !hasToolBody && 'cursor-default',
+            isRunning && 'tool-call-row-hit--live',
+            item.isError && !isRunning && 'tool-call-row-hit--error',
+          )}
+        >
+          {hasToolBody ? (
+            <ChevronRight
+              className="chevron-expand h-3 w-3 shrink-0 timeline-text-placeholder"
+              data-open={expanded ? 'true' : 'false'}
+            />
+          ) : (
+            <span className="w-3 shrink-0" aria-hidden />
+          )}
+          {skillContext ? (
+            <BookOpen className="h-3 w-3 shrink-0 text-primary/75" strokeWidth={1.8} />
+          ) : (
+            <ToolIcon name={item.toolName || ''} className="h-3 w-3 shrink-0 timeline-text-quiet" />
+          )}
           <span
             className={cn(
               'timeline-activity-label min-w-0 truncate',
@@ -175,13 +164,27 @@ function ToolCallRowImpl({
           >
             {primaryLabel}
           </span>
-        )}
-        <DiffStatBadge
-          additions={diffStats.additions}
-          deletions={diffStats.deletions}
-          className="ml-auto pl-2"
-        />
-      </button>
+          {item.isError ? (
+            <span className="timeline-tool-error shrink-0 text-[12px] text-destructive">
+              {t('timeline:activity.failedTools', { count: 1 })}
+            </span>
+          ) : null}
+          <DiffStatBadge
+            additions={diffStats.additions}
+            deletions={diffStats.deletions}
+            className="ml-auto pl-2"
+          />
+        </button>
+        {item.extensionUiSuspended ? (
+          <button
+            type="button"
+            className="timeline-tool-resume shrink-0 rounded-sm px-1.5 py-0.5 text-[14px] text-primary hover:bg-[var(--bg-hover)]"
+            onClick={() => useExtensionUIStore.getState().resumeSuspended()}
+          >
+            {t('timeline:continueAnswering')}
+          </button>
+        ) : null}
+      </div>
       {expanded && hasToolBody ? (
         <div className="tool-call-body ml-3.5 border-l border-border/12 pl-1.5 pb-0.5 pt-0.5">
           <ToolOutputExpanded item={item} />

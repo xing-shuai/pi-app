@@ -1,4 +1,6 @@
 import { memo, type ReactNode } from 'react'
+import { useMarkdownWorkspaceOrigin } from '@renderer/lib/markdown-workspace-origin'
+import { useUIStore } from '@renderer/stores/ui-store'
 import { openReviewGitForPath, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
 
 const PATH_RE =
@@ -12,6 +14,7 @@ function looksLikePath(segment: string): boolean {
 }
 
 export const MarkdownPathText = memo(function MarkdownPathText({ text }: { text: string }) {
+  const origin = useMarkdownWorkspaceOrigin()
   const parts: ReactNode[] = []
   let last = 0
   let m: RegExpExecArray | null
@@ -31,6 +34,7 @@ export const MarkdownPathText = memo(function MarkdownPathText({ text }: { text:
           className="mx-0.5 inline rounded px-0.5 font-mono text-[12px] text-primary hover:underline"
           onClick={(e) => {
             e.preventDefault()
+            if (useUIStore.getState().currentWorkspace !== origin) return
             if (e.shiftKey) openReviewGitForPath(path)
             else openWorkspaceRelativePath(path)
           }}

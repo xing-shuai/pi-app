@@ -27,7 +27,7 @@ type Props = {
   onNewFolder?: () => void
   onSearchInFolder?: () => void
   onRename: () => void
-  onReveal: () => void
+  onReveal?: () => void
   onOpenInNewTab?: () => void
 }
 
@@ -167,8 +167,10 @@ export function FilesContextMenuPortal({
         type="button"
         className={item}
         onPointerDown={stop}
+        disabled={!onReveal}
+        title={!onReveal ? 'Remote files cannot be revealed in the local file manager' : undefined}
         onClick={() => {
-          onReveal()
+          onReveal?.()
           onClose()
         }}
       >

@@ -50,9 +50,11 @@ function writeSectionOpen(open: boolean): void {
 export function ProjectSidebar({
   onOpenProject,
   openProjectLabel,
+  referenceLayout = false,
 }: {
   onOpenProject: () => void
   openProjectLabel: string
+  referenceLayout?: boolean
 }) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
@@ -81,6 +83,7 @@ export function ProjectSidebar({
     writeSectionOpen(next)
   }, [])
   const [sessionQuery, setSessionQuery] = useState('')
+  const [searchRevealed, setSearchRevealed] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [sessionScope, setSessionScope] = useState<'project' | 'all'>('project')
   const scopeLabel = t(sessionScope === 'project' ? 'common:sidebar.thisProject' : 'common:sidebar.allProjects')
@@ -470,8 +473,16 @@ export function ProjectSidebar({
   }
 
   return (
-    <div className="flex flex-col pb-1">
-      <div className="sidebar-search-block border-b border-border/40 px-3 py-3">
+    <div className={`flex flex-col pb-1${referenceLayout ? ' reference-code-projects' : ''}`}>
+      {referenceLayout && <div className="reference-code-tree-actions">
+        <button type="button" data-open-project="" onClick={onOpenProject} title={openProjectLabel} aria-label={openProjectLabel}><Plus className="h-4 w-4" /></button>
+        <button type="button" aria-label={t('common:sidebar.searchSessions')} aria-expanded={searchRevealed} onClick={() => {
+          setSearchRevealed((revealed) => !revealed)
+          setSessionQuery('')
+          if (!searchRevealed) requestAnimationFrame(() => searchInputRef.current?.focus())
+        }}><Search className="h-4 w-4" /></button>
+      </div>}
+      {(!referenceLayout || searchRevealed) && <div className="sidebar-search-block border-b border-border/40 px-3 py-3">
         <div className="workbench-search sidebar-search">
           <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
           <input
@@ -500,10 +511,10 @@ export function ProjectSidebar({
             <span className="sidebar-search-scope-track" aria-hidden />
           </button>
         </div>
-      </div>
+      </div>}
       {searchActive && !visiblePaths.length && !visibleSandboxes.length && <div className="px-4 py-6 text-center text-xs text-foreground-secondary"><p>{t('common:sidebar.noResults')}</p><button type="button" className="workbench-button mt-2" onClick={() => setSessionQuery('')}>{t('common:sidebar.clearSearch')}</button></div>}
 
-      <div className="px-3 pt-2" hidden={searchActive && visibleSandboxes.length === 0}>
+      {!referenceLayout && <div className="px-3 pt-2" hidden={searchActive && visibleSandboxes.length === 0}>
         <div className="sidebar-section-head">
           <button
             type="button"
@@ -555,7 +566,7 @@ export function ProjectSidebar({
             )}
           </div>
         </SidebarAnimatedCollapse>
-      </div>
+      </div>}
 
       <SandboxContextMenuPortal menu={sandboxMenu.menu} onClose={sandboxMenu.close} onListChange={refreshSandboxes} />
       <SessionContextMenuPortal
@@ -571,8 +582,8 @@ export function ProjectSidebar({
         onListChange={refreshSessionsAfterMutation}
       />
 
-      <div className="mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
-        <div className="sidebar-section-head">
+      <div className="reference-code-project-list mt-3 px-3" hidden={searchActive && visiblePaths.length === 0}>
+        {!referenceLayout && <div className="sidebar-section-head">
           <span className="sidebar-section-title flex-1 px-1">{t('common:sidebar.projects')}</span>
           {/* Projects come from opening a folder; refreshing lives in the top-right reload button. */}
           <button
@@ -585,15 +596,9 @@ export function ProjectSidebar({
           >
             <Plus className="h-3.5 w-3.5" strokeWidth={1.75} />
           </button>
-        </div>
+        </div>}
         {worktrees.failed && <div role="status" className="px-3 pb-2 text-xs text-foreground-secondary">{t('common:sidebar.worktreeReadFailed')}</div>}
-        {diskPaths.length === 0 ? (
-          <button type="button" onClick={onOpenProject}
-            className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-md border border-dashed border-border/70 px-3 py-2.5 text-left text-[12px] text-foreground-secondary hover:border-border hover:text-foreground">
-            <FolderOpen className="h-4 w-4 shrink-0" />
-            <span>{t('common:sidebar.openFolderEmpty')}</span>
-          </button>
-        ) : (
+        {diskPaths.length === 0 ? null : (
           projectGroups.map((group) => {
             const projects = group.projects.filter((project) => visiblePaths.includes(project.path))
             if (!projects.length) return null
@@ -613,6 +618,17 @@ export function ProjectSidebar({
           })
         )}
       </div>
+      {referenceLayout && (visibleSandboxes.length > 0 || ephemeralSandboxDraft) && <section className="reference-code-other px-3" aria-label="Other">
+        <h2>Other</h2>
+        {ephemeralSandboxDraft && <div className="reference-code-draft">{t('common:sidebar.newSessionDraft')}</div>}
+        {visibleSandboxes.map((box) => <SandboxDialogRow
+          key={box.path}
+          box={box}
+          active={box.path === currentWorkspace && !ephemeralSandboxDraft}
+          onOpen={() => void openSandboxDialog(box)}
+          onContextMenu={(event) => sandboxMenu.open(event, box.path, box.label)}
+        />)}
+      </section>}
     </div>
   )
 }

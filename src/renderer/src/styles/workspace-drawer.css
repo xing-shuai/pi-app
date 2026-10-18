@@ -1,0 +1,18 @@
+/* One edge entry point; no feature toolbar above the transcript. */
+.reference-code .workspace-panel-edge-toggle { position: absolute; z-index: 30; right: 12px; top: 12px; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--border-base); border-radius: 8px; background: var(--bg-base); color: var(--text-secondary); box-shadow: 0 2px 5px #0001; }
+.reference-code .workspace-panel-edge-toggle:hover { color: var(--text-primary); background: var(--bg-hover); }
+.reference-code .workspace-panel-edge-toggle:focus-visible { outline: 2px solid var(--focus-border, #278bec); outline-offset: 2px; }
+.reference-code .workspace-panel-edge-toggle:disabled { opacity: .45; cursor: default; }
+.workspace-panel-drawer { display: flex; flex: 1; flex-direction: column; width: 100%; min-width: 0; min-height: 0; background: var(--bg-base); font-family: var(--font-sans); }
+.workspace-panel-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; min-height: 40px; gap: 12px; padding: 6px 10px 2px 14px; color: var(--text-secondary); font-size: 14px; }
+.workspace-panel-header > div { display: inline-flex; align-items: center; gap: 4px; }
+.workspace-panel-header button { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 6px; }
+.workspace-panel-header button:hover, .workspace-panel-header button[aria-pressed='true'] { background: var(--bg-hover); color: var(--text-primary); }
+.workspace-panel-header button:disabled { opacity: .45; cursor: default; }
+.workspace-panel-tabs { padding: 4px 8px 8px; border-bottom: 1px solid var(--border-base); }
+.workspace-panel-tabs .right-panel-tabs-scroll { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+.workspace-panel-tabs .right-panel-tabs-scroll::-webkit-scrollbar { height: 3px; }
+.workspace-panel-tabs .right-panel-tabs-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 5px; }
+@supports selector(::-webkit-scrollbar) { .workspace-panel-tabs .right-panel-tabs-scroll { scrollbar-width: auto; scrollbar-color: auto; } }
+.workspace-panel-tabs .workspace-panel-tab { font-size: 14px; line-height: 20px; }
+.workspace-panel-tabs .workspace-panel-tab:focus-visible { outline: 2px solid var(--focus-border, #278bec); outline-offset: -2px; }

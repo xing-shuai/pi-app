@@ -46,6 +46,8 @@ import {
   handleCloseDecisionShown,
   guardAppQuit,
   setRunningTerminalsProbe,
+  setRemoteActivityProbe,
+  setAdditionalActivityProbe,
   __resetWindowCloseGuardForTest,
 } from './window-close-guard'
 
@@ -146,6 +148,29 @@ describe('window-close-guard', () => {
     const res = handleCloseDecision('now')
     expect(res.ok).toBe(true)
     expect(winMock.instance.close).toHaveBeenCalled()
+  })
+
+  it('combines Chat, routine and SSH activity instead of overwriting probes', () => {
+    setAdditionalActivityProbe('chat', () => true)
+    setAdditionalActivityProbe('routines', () => false)
+    setRemoteActivityProbe(() => false)
+    closeHandler?.(makeEvent())
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+    expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', { isStreaming: true, terminals: 0 })
+  })
+
+  it('guards remote work and waits until the remote run settles', () => {
+    vi.useFakeTimers()
+    let busy = true
+    setRemoteActivityProbe(() => busy)
+    closeHandler?.(makeEvent())
+    expect(winMock.instance.webContents.send).toHaveBeenCalledWith('ipc:close-requested', { isStreaming: true, terminals: 0 })
+    handleCloseDecision('wait')
+    vi.advanceTimersByTime(1500)
+    expect(winMock.instance.close).not.toHaveBeenCalled()
+    busy = false
+    vi.advanceTimersByTime(600)
+    expect(winMock.instance.close).toHaveBeenCalledOnce()
   })
 
   it('decision wait closes once the turn settles', () => {

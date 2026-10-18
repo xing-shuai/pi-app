@@ -3,11 +3,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { FilePreviewRouter } from './file-preview-router'
 import { WORKSPACE_TEXT_MAX_BYTES } from '@shared/workspace-preview'
 
+vi.mock('react-i18next', async (original) => ({ ...await original<typeof import('react-i18next')>(), useTranslation: () => ({ t: (key: string) => key }) }))
 vi.mock('@renderer/lib/ipc-client', () => ({ ipcClient: { invoke: vi.fn() } }))
 vi.mock('@renderer/features/timeline/markdown-view', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }))
 vi.mock('./file-source-preview', () => ({ FileSourcePreview: ({ code, sourceLocation }: { code: string; sourceLocation?: { line: number } }) => <pre data-line={sourceLocation?.line}>{code}</pre> }))
 afterEach(cleanup)
 describe('file preview', () => {
+  it('does not offer the local OS as a fallback for remote binary files', async () => {
+    render(<FilePreviewRouter workspaceRoot="/__pi_ssh__/host/hash/project" relativePath="file.pdf" readText={vi.fn()} />)
+    expect(screen.getByRole('button', { name: 'preview.openInSystem' })).toBeDisabled()
+  })
   it('opens Markdown line references as source and reads beyond the usual preview prefix', async () => {
     const readText = vi.fn().mockResolvedValue({ ok: true, content: '# heading\nsource line' })
     const { container } = render(<FilePreviewRouter workspaceRoot="/ws" relativePath="readme.md" readText={readText} sourceLocation={{ line: 2 }} />)

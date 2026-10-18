@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ModelPicker } from './model-picker'
 import {
@@ -49,12 +49,29 @@ beforeEach(() => {
   clearAvailableModelsCacheForTests()
   useUIStore.setState({
     modelPickerOpen: true,
+    currentWorkspace: '/native/project',
     historySessionFile: 'C:/sessions/one.jsonl',
-    runState: { ...useUIStore.getState().runState, model: 'anthropic/old' },
+    runState: { ...useUIStore.getState().runState, model: 'anthropic/old', availableThinkingLevels: undefined },
   })
 })
 
 describe('ModelPicker runtime confirmation', () => {
+  it('shows the directory cause and retries instead of claiming that the remote has no models', async () => {
+    useUIStore.setState({ runState: { ...useUIStore.getState().runState, model: '' } })
+    invoke.mockImplementation(async (method) => {
+      if (method === 'model.list') throw new Error('unsafe_session_directory:pi-config:write-access:0775')
+      return {}
+    })
+    render(<ModelPicker />)
+    expect(await screen.findByText(/global Pi configuration directory/)).toBeInTheDocument()
+    expect(screen.queryByText('No models available')).toBeNull()
+    const retry = screen.getByRole('button', { name: 'Retry model loading' })
+    await waitFor(() => expect(retry).toBeEnabled())
+    invoke.mockImplementation(async (method) => method === 'model.list' ? { models: [{ provider: 'remote', id: 'actual', name: 'Actual remote model', available: true }] } : {})
+    fireEvent.click(retry)
+    expect(await screen.findByRole('button', { name: /Actual remote model — remote/ })).toBeEnabled()
+    expect(screen.queryByText(/global Pi configuration directory/)).toBeNull()
+  })
   it('renders a warm cached list before the open refresh resolves', async () => {
     invoke.mockResolvedValueOnce({ models: [{ provider: 'openai', id: 'cached', available: true }] })
     await refreshAvailableModels()
@@ -63,8 +80,6 @@ describe('ModelPicker runtime confirmation', () => {
 
     render(<ModelPicker />)
 
-    expect(screen.getByRole('button', { name: /openai/i })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: /openai/i }))
     expect(screen.getByRole('button', { name: /cached/i })).toBeTruthy()
     expect(invoke.mock.calls.filter(([method]) => method === 'model.list')).toHaveLength(2)
 
@@ -78,7 +93,6 @@ describe('ModelPicker runtime confirmation', () => {
     invoke.mockRejectedValueOnce(new Error('offline'))
 
     render(<ModelPicker />)
-    fireEvent.click(screen.getByRole('button', { name: /openai/i }))
 
     expect(screen.getByRole('button', { name: /cached/i })).toBeTruthy()
     await waitFor(() => expect(invoke.mock.calls.filter(([method]) => method === 'model.list')).toHaveLength(2))
@@ -104,8 +118,6 @@ describe('ModelPicker runtime confirmation', () => {
     )
 
     await waitFor(() => expect(invoke.mock.calls.filter(([m]) => m === 'model.list')).toHaveLength(2))
-    // Collapsed providers do not render their rows; open the group to see the reloaded model.
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
     expect(await screen.findByRole('button', { name: /gpt-4/i })).toBeTruthy()
   })
 
@@ -115,9 +127,11 @@ describe('ModelPicker runtime confirmation', () => {
 
     render(<ModelPicker />)
 
-    expect(await screen.findByText(/Recent|最近使用|recentModels/)).toBeTruthy()
     expect(await screen.findByRole('button', { name: /gpt-4/i })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: /grok/i })).toBeNull()
+    const rows = screen.getAllByRole('button')
+    expect(rows[0]).toHaveTextContent('old')
+    expect(rows[1]).toHaveTextContent('gpt-4')
+    expect(rows[2]).toHaveTextContent('grok')
   })
 
   it('does not reload on non-run events', async () => {
@@ -146,8 +160,7 @@ describe('ModelPicker runtime confirmation', () => {
     })
 
     render(<ModelPicker />)
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
-    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /gpt\/new/i }))
 
     expect(useUIStore.getState().runState.model).toBe('anthropic/old')
     expect(screen.getByRole('button', { name: /gpt\/new/i })).toBeDisabled()
@@ -156,6 +169,38 @@ describe('ModelPicker runtime confirmation', () => {
     await waitFor(() => expect(useUIStore.getState().runState.model).toBe('openai/gpt/new'))
   })
 
+  it('confirms a remote draft selection and its real Effort levels on the hidden workspace probe', async () => {
+    const workspaceId = '/__pi_ssh__/fixture/root/project'
+    useUIStore.setState({ currentWorkspace: workspaceId, historySessionFile: null })
+    invoke.mockImplementation(async (method) => {
+      if (method === 'model.list') return { models: [{ provider: 'remote', id: 'reasoning', name: 'Remote reasoning', available: true }] }
+      if (method === 'model.set') return { modelId: 'remote/reasoning', thinkingLevel: 'low', availableThinkingLevels: ['off', 'low', 'high'] }
+      return {}
+    })
+    render(<ModelPicker />)
+    fireEvent.click(await screen.findByRole('button', { name: /Remote reasoning — remote/ }))
+    await waitFor(() => expect(useUIStore.getState().runState).toMatchObject({ model: 'remote/reasoning', thinkingLevel: 'low', availableThinkingLevels: ['off', 'low', 'high'] }))
+    expect(invoke).toHaveBeenCalledWith('model.set', { sessionId: '', workspaceId, draft: true, provider: 'remote', modelId: 'reasoning' })
+    expect(useUIStore.getState().historySessionFile).toBeNull()
+    expect(invoke.mock.calls.some(([method]) => method === 'session.new' || method === 'prompt.send')).toBe(false)
+  })
+  it('drops a remote draft confirmation after leaving and returning to the same workspace', async () => {
+    const workspaceId = '/__pi_ssh__/fixture/root/project'
+    useUIStore.setState({ currentWorkspace: workspaceId, historySessionFile: null })
+    let finish!: (value: unknown) => void
+    invoke.mockImplementation(async (method) => {
+      if (method === 'model.list') return { models: [{ provider: 'remote', id: 'reasoning', name: 'Remote reasoning', available: true }] }
+      if (method === 'model.set') return new Promise((resolve) => { finish = resolve })
+      return {}
+    })
+    render(<ModelPicker />)
+    fireEvent.click(await screen.findByRole('button', { name: /Remote reasoning — remote/ }))
+    useUIStore.setState({ currentWorkspace: '/native/other' })
+    useUIStore.setState({ currentWorkspace: workspaceId })
+    await act(async () => { finish({ modelId: 'remote/reasoning', thinkingLevel: 'high', availableThinkingLevels: ['off', 'high'] }); await Promise.resolve() })
+    await waitFor(() => expect(useUIStore.getState().runState.model).toBe('anthropic/old'))
+    expect(useUIStore.getState().runState.availableThinkingLevels).toBeUndefined()
+  })
   it('stores a new-session preselection without touching a running Worker', async () => {
     useUIStore.setState({ historySessionFile: null })
     invoke.mockImplementation(async (method) => {
@@ -166,8 +211,7 @@ describe('ModelPicker runtime confirmation', () => {
     })
 
     render(<ModelPicker />)
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
-    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /gpt\/new/i }))
 
     expect(useUIStore.getState().runState.model).toBe('openai/gpt/new')
     expect(useUIStore.getState().modelPickerOpen).toBe(false)
@@ -184,8 +228,7 @@ describe('ModelPicker runtime confirmation', () => {
     })
 
     render(<ModelPicker />)
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
-    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /gpt\/new/i }))
 
     await waitFor(() => expect(useUIStore.getState().runState.model).toBe('anthropic/old'))
     expect(useUIStore.getState().modelPickerOpen).toBe(true)
@@ -204,8 +247,7 @@ describe('ModelPicker runtime confirmation', () => {
     })
 
     render(<ModelPicker />)
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
-    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /gpt\/new/i }))
     // 非乐观：runtime 确认前 runState 保持原值
     expect(useUIStore.getState().runState.model).toBe('anthropic/old')
 
@@ -238,14 +280,12 @@ describe('ModelPicker runtime confirmation', () => {
     })
 
     const first = render(<ModelPicker />)
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
-    fireEvent.click(screen.getByRole('button', { name: /gpt\/new/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /gpt\/new/i }))
     // 模拟 App 条件卸载：关闭 picker 后组件卸载（局部 pending 重置），再重新打开选第二个
     useUIStore.setState({ modelPickerOpen: false })
     first.unmount()
     useUIStore.setState({ modelPickerOpen: true })
     render(<ModelPicker />)
-    fireEvent.click(await screen.findByRole('button', { name: /openai/i }))
     fireEvent.click(await screen.findByRole('button', { name: /gpt-next/i }))
     expect(resolvers).toHaveLength(2)
 

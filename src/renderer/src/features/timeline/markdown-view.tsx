@@ -26,6 +26,7 @@ import { StreamLiveTailBlock } from '@renderer/features/timeline/stream-text-rev
 import { Check, ChevronDown, Copy } from '@renderer/components/icons'
 import { uiBlockLanguageFromClassName } from '@renderer/features/ui-blocks/protocol'
 import { UIBlockHost } from '@renderer/features/ui-blocks/host'
+import { MarkdownWorkspaceOrigin, useMarkdownWorkspaceOrigin } from '@renderer/lib/markdown-workspace-origin'
 import { localFilePathFromHref } from '@renderer/lib/open-workspace-path'
 
 const markdownUrlTransform: UrlTransform = (url, key) =>
@@ -191,6 +192,7 @@ const MarkdownView = memo(function MarkdownView({
   className,
   streaming,
   baseDirectory,
+  originWorkspaceId,
 }: {
   children: string
   className?: string
@@ -198,7 +200,9 @@ const MarkdownView = memo(function MarkdownView({
   streaming?: boolean
   /** Relative links in a file preview resolve from that file's directory. */
   baseDirectory?: string
+  originWorkspaceId?: string | null
 }) {
+  const origin = useMarkdownWorkspaceOrigin(baseDirectory, originWorkspaceId)
   const committedStableRef = useRef('')
 
   useEffect(() => {
@@ -330,9 +334,9 @@ const MarkdownView = memo(function MarkdownView({
 
   if (usePlainStream) {
     return (
-      <div className={cn('prose-chat prose-chat-streaming', className)}>
+      <MarkdownWorkspaceOrigin.Provider value={origin}><div className={cn('prose-chat prose-chat-streaming', className)}>
         <StreamLiveTailBlock text={liveTail} streaming />
-      </div>
+      </div></MarkdownWorkspaceOrigin.Provider>
     )
   }
 
@@ -341,7 +345,7 @@ const MarkdownView = memo(function MarkdownView({
     const openUIFence = liveTail ? splitOpenUIFence(liveTail) : null
     const tailMarkdown = openUIFence ? openUIFence.before : liveTail
     return (
-      <div className={cn('prose-chat prose-chat-streaming prose-chat-streaming-split', className)}>
+      <MarkdownWorkspaceOrigin.Provider value={origin}><div className={cn('prose-chat prose-chat-streaming prose-chat-streaming-split', className)}>
         {committedPrefix ? (
           <StreamingMarkdownBlocks source={committedPrefix} components={components as Components} />
         ) : null}
@@ -360,16 +364,16 @@ const MarkdownView = memo(function MarkdownView({
           )
         ) : null}
         {openUIFence ? <UIBlockHost raw={openUIFence.raw} streaming /> : null}
-      </div>
+      </div></MarkdownWorkspaceOrigin.Provider>
     )
   }
 
   return (
-    <div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
+    <MarkdownWorkspaceOrigin.Provider value={origin}><div className={cn('prose-chat', streaming && 'prose-chat-streaming', className)}>
       <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={REHYPE_PLUGINS} components={components} urlTransform={markdownUrlTransform}>
         {markdown}
       </ReactMarkdown>
-    </div>
+    </div></MarkdownWorkspaceOrigin.Provider>
   )
 })
 

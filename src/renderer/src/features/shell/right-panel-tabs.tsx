@@ -48,7 +48,7 @@ export function RightPanelTabs({
   }, [activePanel])
 
   return (
-    <div className="right-panel-tabs-wrap flex h-11 shrink-0 items-center border-b border-border/40 px-2">
+    <div className="right-panel-tabs-wrap workspace-panel-tabs shrink-0">
       <div
         ref={stripRef}
         className={cn(
@@ -57,6 +57,7 @@ export function RightPanelTabs({
           edges.end && 'right-panel-tabs-fade-end',
         )}
         role="tablist"
+        aria-label="Workspace functions"
       >
         {panels.map((panel) => {
           const active = activePanel === panel.key
@@ -70,15 +71,15 @@ export function RightPanelTabs({
               tabIndex={active ? 0 : -1}
               onClick={() => setActivePanel(panel.key)}
               onKeyDown={(e) => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return
+                if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(e.key)) return
                 e.preventDefault()
                 const i = panels.findIndex((p) => p.key === panel.key)
-                const next = panels[(i + (e.key === 'ArrowRight' ? 1 : panels.length - 1)) % panels.length]
+                const next = panels[e.key === 'Home' ? 0 : e.key === 'End' ? panels.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : panels.length - 1)) % panels.length]
                 setActivePanel(next.key)
                 stripRef.current?.querySelector<HTMLElement>(`[data-panel-tab="${CSS.escape(next.key)}"]`)?.focus()
               }}
               className={cn(
-                'h-8 min-w-11 shrink-0 rounded-md px-2.5 text-[12px] font-medium whitespace-nowrap transition-colors',
+                'workspace-panel-tab h-8 min-w-11 shrink-0 rounded-md px-2.5 text-[14px] font-medium whitespace-nowrap transition-colors',
                 active
                   ? 'bg-[var(--bg-active)] text-foreground'
                   : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',

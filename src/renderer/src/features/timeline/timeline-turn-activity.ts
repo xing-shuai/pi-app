@@ -21,6 +21,8 @@ export type TurnActivitySummary = {
   searchCount: number
   commandCount: number
   exploreCount: number
+  otherToolCount?: number
+  otherToolNames?: string[]
   files: TurnFileStat[]
   additions: number
   deletions: number
@@ -116,11 +118,13 @@ export function buildTurnActivitySummary(
   let searchCount = 0
   let commandCount = 0
   let exploreCount = 0
+  const otherTools: ToolTimelineItem[] = []
   for (const tool of tools) {
     const name = tool.toolName || ''
     if (SEARCH_TOOLS.has(name)) searchCount++
     else if (COMMAND_TOOLS.has(name)) commandCount++
     else if (EXPLORE_TOOLS.has(name)) exploreCount++
+    else if (!MUTATE_TOOLS.has(name) || !pathFromTool(tool)) otherTools.push(tool)
   }
 
   const fileMap = new Map<string, TurnFileStat>()
@@ -187,6 +191,8 @@ export function buildTurnActivitySummary(
     searchCount,
     commandCount,
     exploreCount,
+    otherToolCount: otherTools.length,
+    otherToolNames: otherTools.map((tool) => displayToolName(tool.toolName)),
     files,
     additions,
     deletions,
@@ -241,6 +247,12 @@ export function formatCollapsedToolActivityLine(
   }
   if (summary.commandCount > 0) {
     parts.push(t('timeline:activity.commands', { count: summary.commandCount }))
+  }
+  if (parts.length > 0 && summary.otherToolCount) {
+    parts.push(t('timeline:activity.usedTools', {
+      count: summary.otherToolCount,
+      names: formatToolVerbList(summary.otherToolNames || []),
+    }))
   }
   if (parts.length === 0 && summary.toolCount > 0) {
     parts.push(

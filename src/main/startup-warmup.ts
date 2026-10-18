@@ -8,9 +8,16 @@ import { getAgentRuntimeConfig } from './wsl/runtime-config'
  * The renderer calls `app.shellReady` once the shell has painted; a timer is the fallback.
  */
 let started = false
+let codeEnabled = false
+
+/** Chat startup must not import a selected coding SDK or execute extension probes. */
+export function enableCodeWarmup(): void {
+  codeEnabled = true
+  runStartupWarmup()
+}
 
 export function runStartupWarmup(): void {
-  if (started) return
+  if (started || !codeEnabled) return
   started = true
   // First session open / model list would otherwise pay a cold SDK import (~1s). Those reads run
   // in the preview process, so warm it there; the main process no longer needs the SDK on hot

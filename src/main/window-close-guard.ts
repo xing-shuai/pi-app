@@ -32,9 +32,16 @@ export function setRunningTerminalsProbe(probe: () => number): void {
   runningTerminals = probe
 }
 
-/** Closing now would lose something: a running turn, or processes in terminals. */
+const activityProbes = new Map<string, () => boolean>()
+export function setAdditionalActivityProbe(name: string, probe: () => boolean): void { activityProbes.set(name, probe) }
+export function setRemoteActivityProbe(probe: () => boolean): void { setAdditionalActivityProbe('ssh', probe) }
+function remoteActivity(): boolean {
+  return [...activityProbes.values()].some((probe) => { try { return probe() } catch { return true } })
+}
+
+/** Closing now would lose something: a local/remote turn, or processes in terminals. */
 function needsDecision(): boolean {
-  return workerManager.hasActiveTurns || runningTerminals() > 0
+  return workerManager.hasActiveTurns || remoteActivity() || runningTerminals() > 0
 }
 /**
  * Fallback for a renderer that never answers: if it does not confirm the
@@ -87,7 +94,7 @@ function requestCloseDecision(origin: 'window' | 'app'): boolean {
       app.quit()
     }
   }, DECISION_ACK_TIMEOUT_MS)
-  win.webContents.send('ipc:close-requested', { isStreaming: workerManager.hasActiveTurns, terminals: runningTerminals() })
+  win.webContents.send('ipc:close-requested', { isStreaming: workerManager.hasActiveTurns || remoteActivity(), terminals: runningTerminals() })
   return true
 }
 
@@ -116,7 +123,7 @@ function startWaitAndClose(): void {
   // only once the turn (including compaction) settles. If it never settles,
   // the dialog's "Cancel waiting" remains the escape hatch.
   waitPollTimer = setInterval(() => {
-    if (!workerManager.hasActiveTurns) {
+    if (!workerManager.hasActiveTurns && !remoteActivity()) {
       closeNow()
     }
   }, WAIT_POLL_MS)
@@ -192,6 +199,7 @@ export function handleCloseDecisionShown(): void {
 /** Test-only reset of module-level guard state. */
 export function __resetWindowCloseGuardForTest(): void {
   forceQuit = false
+  activityProbes.clear()
   forceCloseWindows = new WeakSet<BrowserWindow>()
   closeDecisionPending = false
   clearDecisionAckTimer()

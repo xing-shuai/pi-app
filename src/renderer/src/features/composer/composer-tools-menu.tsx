@@ -14,250 +14,150 @@ import {
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { ComposerPopover } from './composer-popover'
+import { useCompactPopoverHeight } from './code-usage-popover'
+import '@renderer/styles/compact-composer-popovers.css'
 
 const ICONS: Record<CapabilityId, AppIconComponent> = { 'pi-ui': Sparkles, browser: Globe, chrome: Monitor }
 const EMPTY: CapabilityId[] = []
-
-let catalogCache: CapabilityInfo[] | null = null
-
 type CacheWarming = 'off' | 'streaming' | 'idle'
 const CACHE_MODES: CacheWarming[] = ['off', 'streaming', 'idle']
 
-/**
- * pi's prompt cache warming (`cacheWarming` in settings.json) — the same value as Settings → Runtime,
- * here for quick access. It is global, not per session, and only applies to models that declare a
- * prompt cache lifetime.
- */
+/** Global pi setting, not a per-chat capability or an assertion of model support. */
 function CacheWarmingRow() {
   const { t } = useTranslation()
   const [mode, setMode] = useState<CacheWarming | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const alive = useRef(false)
   useEffect(() => {
-    void ipcClient
-      .invoke('pi.settings.get')
-      .then((res: { settings?: { cacheWarming?: string } | null }) => {
-        const v = res?.settings?.cacheWarming
-        setMode(CACHE_MODES.includes(v as CacheWarming) ? (v as CacheWarming) : 'streaming')
-      })
-      .catch(() => setMode('streaming'))
-  }, [])
+    alive.current = true
+    let current = true
+    setBusy(true)
+    setError(false)
+    void ipcClient.invoke('pi.settings.get').then((res: { settings?: { cacheWarming?: string } | null }) => {
+      if (!current) return
+      const value = res?.settings?.cacheWarming
+      setMode(CACHE_MODES.includes(value as CacheWarming) ? value as CacheWarming : 'streaming')
+    }).catch(() => { if (current) setError(true) }).finally(() => { if (current) setBusy(false) })
+    return () => { current = false; alive.current = false }
+  }, [retry])
   const choose = (next: CacheWarming) => {
+    if (busy || mode === null) return
     const prev = mode
     setMode(next)
-    void ipcClient
-      .invoke('pi.settings.set', { patch: { cacheWarming: next } })
-      .then((res: { ok?: boolean }) => {
-        if (res?.ok === false) setMode(prev)
-      })
-      .catch(() => setMode(prev))
+    setBusy(true)
+    setError(false)
+    void ipcClient.invoke('pi.settings.set', { patch: { cacheWarming: next } }).then((res: { ok?: boolean }) => {
+      if (alive.current && res?.ok === false) { setMode(prev); setError(true) }
+    }).catch(() => { if (alive.current) { setMode(prev); setError(true) } }).finally(() => { if (alive.current) setBusy(false) })
   }
-  return (
-    <div className="border-t border-border/50 pt-1" data-cache-warming={mode ?? ''}>
-      <div className="px-3 pb-0.5 text-[10.5px] text-muted-foreground/65">{t('composer:tools.cacheWarming.group')}</div>
-      <div className="flex items-start gap-2 px-3 py-1.5">
-        <Clock className="mt-[3px] h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
-        <div className="min-w-0 flex-1">
-          <div className="text-[12px] text-foreground">{t('composer:tools.cacheWarming.name')}</div>
-          <div className="text-[10.5px] leading-4 text-muted-foreground/70">{t('composer:tools.cacheWarming.desc')}</div>
-          <div
-            role="radiogroup"
-            aria-label={t('composer:tools.cacheWarming.name')}
-            className="mt-1 flex gap-0.5 rounded-md bg-[var(--bg-hover)] p-0.5"
-          >
-            {CACHE_MODES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                role="radio"
-                aria-checked={mode === m}
-                disabled={mode === null}
-                onClick={() => choose(m)}
-                className={cn(
-                  'flex-1 whitespace-nowrap rounded-[5px] px-1.5 py-0.5 text-[10.5px] text-muted-foreground transition-colors hover:text-foreground',
-                  mode === m && 'bg-background text-foreground shadow-[0_0_0_0.5px_var(--border)] dark:bg-[#46474d]',
-                )}
-              >
-                {t(`composer:tools.cacheWarming.${m}`)}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
+  return <section className="compact-tools-global" data-cache-warming={mode ?? ''} aria-busy={busy}>
+    <h3 className="compact-section-caption">{t('composer:tools.cacheWarming.group')}</h3>
+    <div className="compact-capability-heading"><Clock size={18} /><span data-app-tooltip={t('composer:tools.cacheWarming.desc')}>{t('composer:tools.cacheWarming.name')}</span></div>
+    <div role="radiogroup" aria-label={t('composer:tools.cacheWarming.name')} className="compact-segments">
+      {CACHE_MODES.map((value) => <button key={value} type="button" role="radio" aria-checked={mode === value} disabled={busy || mode === null} onClick={() => choose(value)}>{t(`composer:tools.cacheWarming.${value}`)}</button>)}
     </div>
-  )
+    {error && <p role="status" className="compact-help">Could not update cache warming. <button type="button" className="compact-text-action" disabled={busy} onClick={() => setRetry((value) => value + 1)}>Retry</button></p>}
+  </section>
 }
 
 function formatTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
-/**
- * Composer "Tools" menu: per-session capability switches (all off for a new session). An enabled
- * capability adds its instructions/tools from the next message on; switching it off removes them.
- */
 type BrowserMode = 'off' | 'builtin' | 'chrome'
-
-/** Which browser the agent drives in this conversation: none, the built-in panel, or the user's Chrome. */
-function BrowserModeRow({ builtin, chrome, enabled, sessionFile }: { builtin: CapabilityInfo; chrome?: CapabilityInfo; enabled: CapabilityId[]; sessionFile: string | null }) {
+function BrowserModeRow({ builtin, chrome, enabled, sessionFile, onSetup }: { builtin: CapabilityInfo; chrome?: CapabilityInfo; enabled: CapabilityId[]; sessionFile: string | null; onSetup: () => void }) {
   const { t } = useTranslation()
   const mode: BrowserMode = enabled.includes('chrome') ? 'chrome' : enabled.includes('browser') ? 'builtin' : 'off'
   const pick = (next: BrowserMode) => {
+    if (next === 'builtin' && !builtin.available || next === 'chrome' && !chrome?.available) return
     setSessionCapability(sessionFile, 'browser', next === 'builtin')
     setSessionCapability(sessionFile, 'chrome', next === 'chrome')
   }
   const options: { id: BrowserMode; info?: CapabilityInfo }[] = [{ id: 'off' }, { id: 'builtin', info: builtin }, { id: 'chrome', info: chrome }]
   const active = mode === 'chrome' ? chrome : mode === 'builtin' ? builtin : undefined
-  const unavailable = options.filter((o) => o.info && !o.info.available)
+  const unavailable = options.filter((option) => option.id !== 'off' && !option.info?.available)
+  const needsSetup = unavailable.some((option) => option.info?.reason === 'browser-panel-off' || option.info?.reason === 'chrome-off')
   const cost = active
-    ? [active.tools > 0 ? (active.coreTools ? t('composer:tools.toolCountDeferred', { count: active.tools, core: active.coreTools }) : t('composer:tools.toolCount', { count: active.tools })) : '', active.promptTokens > 0 ? t('composer:tools.tokens', { n: formatTokens(active.promptTokens) }) : '']
-        .filter(Boolean)
-        .join(' · ')
+    ? [active.tools > 0 ? (active.coreTools ? t('composer:tools.toolCountDeferred', { count: active.tools, core: active.coreTools }) : t('composer:tools.toolCount', { count: active.tools })) : '', active.promptTokens > 0 ? t('composer:tools.tokens', { n: formatTokens(active.promptTokens) }) : ''].filter(Boolean).join(' · ')
     : ''
-  return (
-    <div className="px-3 py-1.5">
-      <div className="flex items-start gap-2">
-        <Globe className="mt-[3px] h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
-        <div className="min-w-0 flex-1">
-          <div className="text-[12px] text-foreground">{t('composer:tools.browserMode.label')}</div>
-          <div className="text-[10.5px] leading-4 text-muted-foreground/70">{t(`composer:tools.browserMode.desc.${mode}`)}</div>
-        </div>
-      </div>
-      <div role="radiogroup" aria-label={t('composer:tools.browserMode.label')} className="mt-1.5 flex rounded-md border border-border/60 p-0.5">
-        {options.map((o) => {
-          const disabled = !!o.info && !o.info.available
-          return (
-            <button
-              key={o.id}
-              type="button"
-              role="radio"
-              aria-checked={mode === o.id}
-              disabled={disabled}
-              title={disabled && o.info?.reason ? t(`composer:tools.reasons.${o.info.reason}`) : undefined}
-              onClick={() => pick(o.id)}
-              className={cn(
-                'flex-1 rounded px-1.5 py-1 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-                mode === o.id ? 'bg-primary text-primary-foreground' : 'text-foreground-secondary hover:bg-[var(--bg-hover)]',
-              )}
-            >
-              {t(`composer:tools.browserMode.${o.id}`)}
-            </button>
-          )
-        })}
-      </div>
-      {cost ? <div className="mt-1 text-[10px] tabular-nums text-muted-foreground/55">{cost}</div> : null}
-      {unavailable.map((o) => (o.info?.reason ? <div key={o.id} className="mt-0.5 text-[10px] leading-4 text-muted-foreground/55">{t(`composer:tools.browserMode.${o.id}`)}：{t(`composer:tools.reasons.${o.info.reason}`)}</div> : null))}
+  return <section className="compact-capability-card">
+    <div className="compact-capability-heading"><Globe size={18} /><span>{t('composer:tools.browserMode.label')}</span></div>
+    <div role="radiogroup" aria-label={t('composer:tools.browserMode.label')} className="compact-segments">
+      {options.map((option) => <button key={option.id} type="button" role="radio" aria-checked={mode === option.id} disabled={option.id !== 'off' && !option.info?.available} data-app-tooltip={option.info?.reason ? t(`composer:tools.reasons.${option.info.reason}`) : undefined} onClick={() => pick(option.id)}>{t(`composer:tools.browserMode.${option.id}`)}</button>)}
     </div>
-  )
+    {cost && <p className="compact-help compact-capability-cost">{cost}</p>}
+    {unavailable.length > 0 && <>
+      <div className="compact-setup-row"><span className="compact-help" data-app-tooltip={unavailable.map((option) => `${t(`composer:tools.browserMode.${option.id}`)}: ${option.info?.reason ? t(`composer:tools.reasons.${option.info.reason}`) : 'Unavailable in this runtime'}`).join('\n')}>{needsSetup ? 'Setup required' : 'Unavailable in this runtime'}</span>{needsSetup && <button type="button" className="compact-text-action" data-app-tooltip="Open Settings → Capabilities → Right panels" onClick={onSetup}>Settings…</button>}</div>
+    </>}
+  </section>
 }
 
+/** Real per-session switches; none of these change approval or tool execution policies. */
 export function ComposerToolsMenu({ disabled, running }: { disabled?: boolean; running?: boolean }) {
   const { t } = useTranslation()
-  const sessionFile = useUIStore((s) => s.historySessionFile)
+  const sessionFile = useUIStore((state) => state.historySessionFile)
   const key = capabilityKey(sessionFile)
-  const enabled = useSessionCapabilitiesStore((s) => s.byKey[key]) ?? EMPTY
+  const enabled = useSessionCapabilitiesStore((state) => state.byKey[key]) ?? EMPTY
   const [open, setOpen] = useState(false)
-  const [catalog, setCatalog] = useState<CapabilityInfo[] | null>(catalogCache)
+  const maxHeight = useCompactPopoverHeight(open, '[data-composer-tools]')
+  const [catalog, setCatalog] = useState<CapabilityInfo[] | null>(null)
+  const [catalogError, setCatalogError] = useState(false)
   const prevKey = useRef(key)
-
-  useEffect(() => {
-    void loadSessionCapabilities()
-  }, [])
-
+  useEffect(() => { void loadSessionCapabilities() }, [])
   useEffect(() => {
     onCapabilityKeyChange(prevKey.current, key)
     prevKey.current = key
   }, [key])
-
   useEffect(() => {
-    // Availability follows settings (e.g. the Browser panel experiment): refresh on every open.
+    // Never expose stale availability while a newly opened menu checks current preferences.
     if (!open) return
-    void ipcClient
-      .invoke('capabilities.catalog')
-      .then((res: { capabilities?: CapabilityInfo[] }) => {
-        catalogCache = res?.capabilities ?? []
-        setCatalog(catalogCache)
-      })
-      .catch(() => setCatalog([]))
+    let alive = true
+    setCatalog(null)
+    setCatalogError(false)
+    void ipcClient.invoke('capabilities.catalog').then((res: { capabilities?: CapabilityInfo[] }) => {
+      if (alive) setCatalog(res?.capabilities ?? [])
+    }).catch(() => { if (alive) { setCatalog([]); setCatalogError(true) } })
+    return () => { alive = false }
   }, [open])
-
   const label = (id: CapabilityId) => t(`composer:tools.items.${id}.name`)
   const names = enabled.map(label).join('、')
-
-  return (
-    <div className="flex min-w-0 items-center">
-      {/* One icon button. Enabled capabilities show as a small count (names in the tooltip
-          and the menu), so turning things on never widens the toolbar. */}
-      <button
-        type="button"
-        data-composer-tools=""
-        disabled={disabled}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label={enabled.length ? t('composer:tools.enabledTitle', { names }) : t('composer:tools.button')}
-        title={enabled.length ? t('composer:tools.enabledTitle', { names }) : t('composer:tools.button')}
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          'composer-toolbar-btn flex h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1.5 text-foreground-secondary/75 disabled:opacity-30',
-          open && 'bg-[var(--bg-active)] text-foreground',
-          enabled.length > 0 && 'text-primary',
-        )}
-      >
-        <SlidersHorizontal className="h-[14px] w-[14px]" />
-        {enabled.map((id) => (
-          <span key={id} className="composer-capability-chip hidden" data-capability={id} />
-        ))}
-        {enabled.length > 0 ? <span className="text-[11px] tabular-nums">{enabled.length}</span> : null}
-      </button>
-      {open ? (
-        <ComposerPopover
-          anchorSelector="[data-composer-tools]"
-          align="start"
-          width={280}
-          label={t('composer:tools.title')}
-          onClose={() => setOpen(false)}
-        >
-          <div className="px-3 pb-0.5 pt-2 text-[10.5px] text-muted-foreground/65">{t('composer:tools.title')}</div>
-          <div className="min-h-0 flex-1 overflow-y-auto pb-1">
-            {(catalog ?? []).map((cap) => {
-              // One browser row: off / built-in / my Chrome (the two capabilities are exclusive).
-              if (cap.id === 'chrome') return null
-              if (cap.id === 'browser') {
-                return <BrowserModeRow key="browser" builtin={cap} chrome={(catalog ?? []).find((c) => c.id === 'chrome')} enabled={enabled} sessionFile={sessionFile} />
-              }
-              const Icon = ICONS[cap.id]
-              const on = enabled.includes(cap.id)
-              const cost = !cap.available
-                ? t(cap.reason ? `composer:tools.reasons.${cap.reason}` : 'composer:tools.comingSoon')
-                : [cap.tools > 0 ? (cap.coreTools ? t('composer:tools.toolCountDeferred', { count: cap.tools, core: cap.coreTools }) : t('composer:tools.toolCount', { count: cap.tools })) : '', cap.promptTokens > 0 ? t('composer:tools.tokens', { n: formatTokens(cap.promptTokens) }) : '']
-                    .filter(Boolean)
-                    .join(' · ')
-              return (
-                <label
-                  key={cap.id}
-                  className={cn('flex items-start gap-2 px-3 py-1.5', cap.available ? 'cursor-pointer hover:bg-[var(--bg-hover)]' : 'opacity-55')}
-                >
-                  <Icon className="mt-[3px] h-3.5 w-3.5 shrink-0 text-foreground-secondary" />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[12px] text-foreground">{label(cap.id)}</div>
-                    <div className="text-[10.5px] leading-4 text-muted-foreground/70">{t(`composer:tools.items.${cap.id}.desc`)}</div>
-                    {cost ? <div className="text-[10px] tabular-nums text-muted-foreground/55">{cost}</div> : null}
-                  </div>
-                  <Switch
-                    checked={on}
-                    disabled={!cap.available}
-                    aria-label={label(cap.id)}
-                    onCheckedChange={(next) => setSessionCapability(sessionFile, cap.id, next)}
-                    className="mt-0.5 origin-top-right scale-75"
-                  />
-                </label>
-              )
-            })}
-            <CacheWarmingRow />
-          </div>
-          <div className="border-t border-border/50 px-3 py-1.5 text-[10px] leading-4 text-muted-foreground/60">
-            {running ? t('composer:tools.noteRunning') : t('composer:tools.note')}
-          </div>
-        </ComposerPopover>
-      ) : null}
-    </div>
-  )
+  const openSetup = () => {
+    setOpen(false)
+    // Dedicated shell deep-link. Opening setup must not enable any preference.
+    window.dispatchEvent(new CustomEvent('pi-desktop:open-capability-settings'))
+  }
+  return <div className="flex min-w-0 items-center">
+    <button type="button" data-composer-tools="" disabled={disabled} aria-haspopup="dialog" aria-expanded={open} aria-label={enabled.length ? t('composer:tools.enabledTitle', { names }) : t('composer:tools.button')} data-app-tooltip={enabled.length ? t('composer:tools.enabledTitle', { names }) : t('composer:tools.button')} onClick={() => setOpen((value) => !value)} className={cn('composer-toolbar-btn flex h-7 min-w-7 shrink-0 items-center justify-center gap-1 rounded-md px-1.5 text-foreground-secondary/75 disabled:opacity-30', open && 'bg-[var(--bg-active)] text-foreground', enabled.length > 0 && 'text-primary')}>
+      <SlidersHorizontal className="h-[14px] w-[14px]" />
+      {enabled.map((id) => <span key={id} className="composer-capability-chip hidden" data-capability={id} />)}
+      {enabled.length > 0 && <span className="text-[11px] tabular-nums">{enabled.length}</span>}
+    </button>
+    {open && <ComposerPopover anchorSelector="[data-composer-tools]" align="start" width={360} label={t('composer:tools.title')} onClose={() => setOpen(false)} className="compact-composer-popover compact-tools-popover">
+      <div className="compact-tools-content" style={{ maxHeight }}>
+        <h2 className="compact-section-caption">{t('composer:tools.title')}</h2>
+        {catalog === null && <p role="status" className="compact-help">Loading capabilities…</p>}
+        {catalogError && <p role="status" className="compact-help">Could not load capabilities. Reopen to retry.</p>}
+        {(catalog ?? []).map((cap) => {
+          if (cap.id === 'chrome' && catalog?.some((item) => item.id === 'browser')) return null
+          if (cap.id === 'browser') return <BrowserModeRow key="browser" builtin={cap} chrome={catalog?.find((item) => item.id === 'chrome')} enabled={enabled} sessionFile={sessionFile} onSetup={openSetup} />
+          const Icon = ICONS[cap.id]
+          const cost = !cap.available
+            ? t(cap.reason ? `composer:tools.reasons.${cap.reason}` : 'composer:tools.comingSoon')
+            : [cap.tools > 0 ? (cap.coreTools ? t('composer:tools.toolCountDeferred', { count: cap.tools, core: cap.coreTools }) : t('composer:tools.toolCount', { count: cap.tools })) : '', cap.promptTokens > 0 ? t('composer:tools.tokens', { n: formatTokens(cap.promptTokens) }) : ''].filter(Boolean).join(' · ')
+          return <section key={cap.id} className="compact-capability-card">
+            <div className="compact-capability-heading"><Icon size={18} /><span>{label(cap.id)}</span><Switch checked={enabled.includes(cap.id)} disabled={!cap.available} aria-label={label(cap.id)} onCheckedChange={(next) => setSessionCapability(sessionFile, cap.id, next)} /></div>
+            {cost && <p className="compact-help compact-capability-cost">{cost}</p>}
+          </section>
+        })}
+        <CacheWarmingRow />
+        <details className="compact-more-info compact-tools-note"><summary>More info</summary>
+          {(catalog ?? []).map((cap) => <p key={cap.id} className="compact-help"><strong>{label(cap.id)}:</strong> {t(`composer:tools.items.${cap.id}.desc`)}{!cap.available && <> · {cap.reason ? t(`composer:tools.reasons.${cap.reason}`) : t('composer:tools.comingSoon')}</>}</p>)}
+          <p className="compact-help"><strong>{t('composer:tools.cacheWarming.name')}:</strong> {t('composer:tools.cacheWarming.desc')}</p>
+          <p className="compact-help">{running ? t('composer:tools.noteRunning') : t('composer:tools.note')}</p>
+        </details>
+      </div>
+    </ComposerPopover>}
+  </div>
 }

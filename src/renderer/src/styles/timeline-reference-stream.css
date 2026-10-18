@@ -1,0 +1,133 @@
+/* Code transcript only. Keep Chat, the greeting, dock and nonreference timelines unchanged. */
+.reference-code .timeline-scroll-viewport .chat-content-column {
+  max-width: 960px;
+  padding-inline: 28px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.reference-code .timeline-prose-row,
+.reference-code .timeline-activity-item {
+  margin-block: 0;
+  padding-block: 8px;
+}
+
+.reference-code .timeline-prose-row .timeline-text-body,
+.reference-code .timeline-mid-prose,
+.reference-code .timeline-user-bubble,
+.reference-code .timeline-scroll-viewport .prose-chat {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.reference-code .timeline-scroll-viewport .prose-chat :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-sans);
+}
+
+.reference-code .timeline-scroll-viewport :is(pre, code, kbd, samp, .font-mono) {
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.reference-code .timeline-activity-row {
+  width: 100%;
+  min-height: 26px;
+  padding: 0;
+  gap: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.reference-code .timeline-activity-label {
+  flex: 0 1 auto;
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: 0;
+  /* Full arguments stay available, rather than disappearing into a clipped row. */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.reference-code .timeline-activity-row > .chevron-expand {
+  order: 2;
+  width: 14px;
+  height: 14px;
+  opacity: 1;
+}
+
+/* No decorative tool glyph indent: prose and actual summaries share a left edge. */
+.reference-code .tool-call-row-hit > svg:not(.chevron-expand),
+.reference-code .tool-call-row-hit > span[aria-hidden] {
+  display: none;
+}
+
+.reference-code .timeline-activity-row :is(.timeline-text-quiet, .timeline-text-secondary, .timeline-text-placeholder),
+.reference-code .timeline-activity-row .thinking-chain-label {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.reference-code .timeline-activity-row:hover {
+  background: color-mix(in srgb, var(--bg-hover) 40%, transparent);
+}
+
+.reference-code .timeline-activity-row:focus-visible,
+.reference-code .timeline-tool-resume:focus-visible {
+  outline: 2px solid var(--primary-semantic);
+  outline-offset: 3px;
+}
+
+.reference-code .tool-call-row-hit--live .timeline-activity-label {
+  color: var(--text-primary);
+}
+
+.reference-code .tool-call-row-hit--error .timeline-activity-label,
+.reference-code .timeline-tool-error {
+  color: var(--status-error);
+  opacity: 1;
+}
+
+.reference-code .timeline-group-details,
+.reference-code .timeline-group-attention {
+  margin-left: 0;
+  margin-top: 6px;
+  padding-left: 0;
+  border-left: 0;
+}
+
+.reference-code .tool-call-body {
+  margin-left: 0;
+  margin-block: 6px;
+  padding-left: 12px;
+}
+
+.reference-code .thinking-chain-body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Only the real final-turn file summary is a card; tool activity stays lightweight. */
+.reference-code .timeline-files-changed-card {
+  border: 1px solid var(--border-base, #373736);
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+.reference-code .timeline-files-changed-card > div:first-child > span,
+.reference-code .timeline-files-changed-card .truncate { font-size: 16px; line-height: 24px; }
+.reference-code .timeline-files-changed-card > div:first-child > button { font-size: 14px; }
+
+.reference-code .timeline-user-bubble {
+  max-width: min(80%, 720px);
+}
+
+@media (max-width: 767px) {
+  .reference-code .timeline-scroll-viewport .chat-content-column {
+    padding-inline: 16px;
+  }
+}

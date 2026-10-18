@@ -33,7 +33,7 @@ import { browserToolsExtension } from './worker-browser-tools.js'
 export type WorkerModelRuntime = Pick<
   ModelRuntime,
   'getModel' | 'getModels' | 'getAvailable' | 'refresh' | 'getProviderAuthStatus' | 'listCredentials'
->
+> & Partial<Pick<ModelRuntime, 'getAuth' | 'getProvider'>>
 
 export type WorkerMutableState = {
   sdk: typeof import('@earendil-works/pi-coding-agent') | null

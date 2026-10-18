@@ -60,6 +60,11 @@ export function forgetSessionDisplayMeta(sessionFile?: string | null): void {
 /** 从 pi 全局 settings 读取默认模型 / thinking（Worker 未绑会话时也能显示） */
 export async function fetchPiDefaultDisplayMeta(): Promise<SessionDisplayMeta> {
   try {
+    const workspaceId = useUIStore.getState().currentWorkspace
+    if (workspaceId?.startsWith('/__pi_ssh__/')) {
+      const remote = await ipcClient.invoke('ipc:runtime.getState', { workspaceId, draft: true })
+      return { model: remote?.state?.model, thinkingLevel: remote?.state?.thinkingLevel }
+    }
     const res = await ipcClient.invoke('pi.settings.get', {})
     const s = res?.settings
     if (!s) return {}
@@ -112,8 +117,10 @@ export function applyWorkerBoundModelDisplay(result: {
 export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null): Promise<void> {
   const store = useUIStore.getState()
   const patch: SessionDisplayMeta = {}
+  let remoteRuntimeFacts: { availableThinkingLevels?: string[]; usage?: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number } } | undefined
 
   const previewFile = store.historySessionFile
+  const remoteWorkspace = store.currentWorkspace?.startsWith('/__pi_ssh__/')
   const generation = ++displayMetaGeneration
   // JSONL meta belongs to this session whatever the async checks below decide; record it now so
   // a newer meta-less refresh (which supersedes this one) can still show it.
@@ -128,16 +135,20 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
     // A new draft has no worker; its defaults must not come from another session.
     const res = previewFile
       ? await ipcClient.invoke('ipc:runtime.getState', { sessionFile: previewFile })
-      : null
+      : remoteWorkspace ? await ipcClient.invoke('ipc:runtime.getState', { workspaceId: store.currentWorkspace, draft: true }) : null
     const st = res?.state as {
       sessionFile?: string
       model?: string
       thinkingLevel?: string
       bound?: boolean
+      availableThinkingLevels?: string[]
+      usage?: { input: number; output: number; cacheRead: number; cacheWrite: number; cost: number }
     } | null
     workerBoundToView =
       st?.bound !== false && isViewingWorkerBoundSession(previewFile, st?.sessionFile)
-    if (workerBoundToView && st) {
+    const remoteDraft = remoteWorkspace && !previewFile && st?.bound === false && st.sessionFile == null
+    if ((workerBoundToView || remoteDraft) && st) {
+      if (remoteWorkspace) remoteRuntimeFacts = { availableThinkingLevels: st.availableThinkingLevels, usage: remoteDraft ? undefined : st.usage }
       workerModel = normalizeModelKey(st.model)
       workerThinking = normalizeThinkingLevel(st.thinkingLevel)
       if (workerModel) patch.model = workerModel
@@ -172,7 +183,7 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
     if (!patch.model && sessionModel) patch.model = sessionModel
   }
 
-  if (!patch.model || !patch.thinkingLevel) {
+  if ((!patch.model || !patch.thinkingLevel) && !(remoteWorkspace && previewFile)) {
     const defaults = await fetchPiDefaultDisplayMeta()
     const dm = normalizeModelKey(defaults.model)
     const dt = normalizeThinkingLevel(defaults.thinkingLevel)
@@ -181,8 +192,8 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
     if (!patch.thinkingLevel && dt) patch.thinkingLevel = dt
   }
 
-  const lm = normalizeModelKey(store.lastModel)
-  const lt = normalizeThinkingLevel(store.lastThinking)
+  const lm = remoteWorkspace ? undefined : normalizeModelKey(store.lastModel)
+  const lt = remoteWorkspace ? undefined : normalizeThinkingLevel(store.lastThinking)
   if (!workerBoundToView && !patch.model && lm) patch.model = lm
   if (!patch.thinkingLevel && lt) patch.thinkingLevel = lt
 
@@ -192,23 +203,24 @@ export async function applyComposerDisplayMeta(meta?: SessionDisplayMeta | null)
   const sameView = previewFile
     ? sessionFilesEqual(latest.historySessionFile, previewFile)
     : !latest.historySessionFile
-  if (generation !== displayMetaGeneration || !sameView) return
+  if (generation !== displayMetaGeneration || !sameView || latest.currentWorkspace !== store.currentWorkspace) return
 
   const cur = latest.runState
   // Bound without a model key: clear stale display rather than keep JSONL/lastModel
-  let finalModel = patch.model ?? (!workerBoundToView ? normalizeModelKey(cur.model) : undefined)
+  let finalModel = patch.model ?? (!workerBoundToView && !remoteWorkspace ? normalizeModelKey(cur.model) : undefined)
   if (workerBoundToView && workerModel) finalModel = workerModel
   if (workerBoundToView && !workerModel) finalModel = undefined
 
   const finalThink =
     patch.thinkingLevel ??
     workerThinking ??
-    normalizeThinkingLevel(cur.thinkingLevel) ??
+    (!remoteWorkspace ? normalizeThinkingLevel(cur.thinkingLevel) : undefined) ??
     'off'
 
   store.setRunState({
     model: finalModel,
     thinkingLevel: finalThink,
+    ...(remoteWorkspace ? { availableThinkingLevels: remoteRuntimeFacts?.availableThinkingLevels, usage: remoteRuntimeFacts?.usage } : {}),
   })
 
   notifyModelFallback(meta?.modelFallbackMessage)

@@ -1,3 +1,5 @@
+import { isVirtualWorkspacePath } from '@shared/remote-code'
+import { remoteCodeFileTarget } from './remote-code-paths'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { normalizeWslWindowsPath, windowsPathToWsl, wslWindowsPathDistro } from '@shared/wsl-path'
 
@@ -46,7 +48,9 @@ export function localFilePathFromHref(href: string, baseDirectory?: string | nul
 }
 
 function normalizeRelPath(input: string, workspaceRoot?: string | null): string | null {
-  let raw = input.replace(/\\/g, '/').replace(/^\.\//, '').trim()
+  const safe = isVirtualWorkspacePath(workspaceRoot) ? remoteCodeFileTarget(input, workspaceRoot!) : input
+  if (!safe) return null
+  let raw = safe.replace(/\\/g, '/').replace(/^\.\//, '').trim()
   if (!raw || raw.split('/').includes('..')) return null
 
   if (workspaceRoot) {
@@ -89,7 +93,10 @@ export function openWorkspaceRelativePath(relPath: string, line?: number): boole
 /** Open Review panel (git scope by default) and optionally focus a file. */
 export function openReviewGitForPath(relPath: string): void {
   const store = useUIStore.getState()
-  const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
+  if (isVirtualWorkspacePath(relPath) && !isVirtualWorkspacePath(store.currentWorkspace)) return
+  const normalized = normalizeRelPath(relPath, store.currentWorkspace)
+  if (!normalized && isVirtualWorkspacePath(store.currentWorkspace)) return
+  const raw = normalized || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
   store.setActivePanel('review')
   store.revealRightPanel()
@@ -104,7 +111,10 @@ export function openReviewGitForPath(relPath: string): void {
 /** Open Review panel on session/turn file list and focus a path. */
 export function openReviewSessionForPath(relPath: string): void {
   const store = useUIStore.getState()
-  const raw = normalizeRelPath(relPath, store.currentWorkspace) || relPath.replace(/\\/g, '/').trim()
+  if (isVirtualWorkspacePath(relPath) && !isVirtualWorkspacePath(store.currentWorkspace)) return
+  const normalized = normalizeRelPath(relPath, store.currentWorkspace)
+  if (!normalized && isVirtualWorkspacePath(store.currentWorkspace)) return
+  const raw = normalized || relPath.replace(/\\/g, '/').trim()
   if (!raw) return
   store.setActivePanel('review')
   store.revealRightPanel()

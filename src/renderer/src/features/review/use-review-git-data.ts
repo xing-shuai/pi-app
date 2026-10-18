@@ -63,7 +63,7 @@ function fetchSharedGitDiff(identity: string, force: boolean): Promise<RawGitDif
   if (hit && (!hit.settled || (!force && Date.now() - hit.at < FRESH_MS))) return hit.promise
   const entry = { at: Date.now(), settled: false, promise: Promise.resolve({} as RawGitDiff) }
   entry.promise = ipcClient
-    .invoke('review.getDiff', { sessionId: '', scope: 'git' })
+    .invoke('review.getDiff', { sessionId: '', scope: 'git', workspaceId: identity, cwd: identity })
     .then((response) => (response?.diff || {}) as RawGitDiff)
     .finally(() => {
       entry.settled = true

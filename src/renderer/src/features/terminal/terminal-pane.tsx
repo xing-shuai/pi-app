@@ -10,7 +10,7 @@ import '@xterm/xterm/css/xterm.css'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { X } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
-import { attachWriter, resizePty, shellPath, writeToPty } from './terminal-bridge'
+import { attachWriter, canInteractWithPty, killPty, resizePty, shellPath, writeToPty } from './terminal-bridge'
 import { terminalActions, useTerminalStore, type TerminalPaneState } from './terminal-store'
 import { TERMINAL_FONT, terminalTheme } from './terminal-theme'
 
@@ -61,6 +61,7 @@ function createInstance(pane: TerminalPaneState): Instance {
   }
 
   term.attachCustomKeyEventHandler((e) => {
+    if (!canInteractWithPty(pane.ptyId)) return false
     if (e.type !== 'keydown') return true
     const mod = isMac() ? e.metaKey : e.ctrlKey && e.shiftKey
     // Ctrl+` toggles the drawer: let the window shortcut have it.
@@ -92,6 +93,7 @@ function createInstance(pane: TerminalPaneState): Instance {
   })
 
   const offInput = term.onData((d) => {
+    if (!canInteractWithPty(pane.ptyId)) return
     const exited = useTerminalStore.getState().tabs.some((t) => t.panes.some((p) => p.ptyId === pane.ptyId && p.exited !== undefined))
     // An exited pane: Enter starts the same shell again in its place.
     if (exited) {
@@ -105,16 +107,19 @@ function createInstance(pane: TerminalPaneState): Instance {
 
   // Images on the clipboard: save as a temp file and type its path (CLI agents read image paths).
   const onPaste = (e: ClipboardEvent) => {
+    if (!canInteractWithPty(pane.ptyId)) return
     const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith('image/'))
     if (!file) return
     e.preventDefault()
     e.stopPropagation()
+    // A local temp image path cannot be used on an SSH host; never create one under remote UI.
+    if (pane.workspaceId?.startsWith('/__pi_ssh__/')) return
     const reader = new FileReader()
     reader.onload = () => {
       const m = /^data:(image\/[a-z]+);base64,(.*)$/i.exec(String(reader.result))
-      if (!m) return
+      if (!m || !canInteractWithPty(pane.ptyId)) return
       void ipcClient.invoke('clipboard.writeTempImage', { data: m[2], mimeType: m[1] }).then((r: { path?: string }) => {
-        if (r?.path) term.paste(`${shellPath(r.path, pane.profile.kind)} `)
+        if (r?.path && canInteractWithPty(pane.ptyId)) term.paste(`${shellPath(r.path, pane.profile.kind)} `)
       })
     }
     reader.readAsDataURL(file)
@@ -193,8 +198,14 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
 
   useEffect(() => {
     const inst = instances.get(pane.ptyId)
-    if (!inst || !visible) return
-    requestAnimationFrame(() => {
+    if (!inst) return
+    inst.term.options.disableStdin = !visible
+    if (!visible) {
+      inst.term.blur()
+      return
+    }
+    const frame = requestAnimationFrame(() => {
+      if (!canInteractWithPty(pane.ptyId)) return
       try {
         inst.fit.fit()
       } catch {
@@ -203,11 +214,12 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
       inst.term.refresh(0, inst.term.rows - 1)
       if (active) inst.term.focus()
     })
+    return () => cancelAnimationFrame(frame)
   }, [visible, active, pane.ptyId])
 
   useEffect(() => {
     const onSearch = (e: Event) => {
-      if ((e as CustomEvent<string>).detail === pane.ptyId) setSearching(true)
+      if ((e as CustomEvent<string>).detail === pane.ptyId && canInteractWithPty(pane.ptyId)) setSearching(true)
     }
     window.addEventListener('pi-desktop:terminal-search', onSearch)
     return () => window.removeEventListener('pi-desktop:terminal-search', onSearch)
@@ -256,7 +268,7 @@ export function TerminalPane({ tabId, index, pane, active, visible, split, onClo
                 if (e.key === 'Escape') {
                   setSearching(false)
                   instances.get(pane.ptyId)?.search.clearDecorations()
-                  instances.get(pane.ptyId)?.term.focus()
+                  if (canInteractWithPty(pane.ptyId)) instances.get(pane.ptyId)?.term.focus()
                 }
               }}
             />
@@ -277,7 +289,7 @@ function closePaneNow(ptyId: string): void {
   const pane = useTerminalStore.getState().tabs.flatMap((t) => t.panes).find((p) => p.ptyId === ptyId)
   terminalActions.closePane(ptyId)
   disposeTerminalInstance(ptyId)
-  if (pane && pane.exited === undefined) void ipcClient.invoke('terminal.kill', { id: ptyId }).catch(() => {})
+  if (pane && pane.exited === undefined) killPty(ptyId, pane.workspaceId ?? null)
 }
 
 export function useClosePane(): (ptyId: string) => void {

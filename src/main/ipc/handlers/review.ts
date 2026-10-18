@@ -11,7 +11,9 @@ function reviewMutationCwd(reqCwd?: string): { ok: true; cwd: string } | { ok: f
 
 export function registerReviewHandlers(): void {
   registerHandler('ipc:review.getDiff', async (req) => {
-    const cwd = getTrustedWorkspaceRoot() || process.cwd()
+    const requested = typeof req.cwd === 'string' ? reviewMutationCwd(req.cwd) : { ok: true as const, cwd: getTrustedWorkspaceRoot() || process.cwd() }
+    if (!requested.ok) throw new Error(requested.error)
+    const cwd = requested.cwd
     if (req.scope === 'git') {
       const snap = await readGitWorkspaceSnapshot(cwd)
       return {

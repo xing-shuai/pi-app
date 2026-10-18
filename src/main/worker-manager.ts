@@ -3,6 +3,11 @@
 import { type BrowserWindow } from 'electron'
 import type { AdapterCatalog } from '../extension-compat/adapter-schema'
 import type { AppEvent } from '@shared/app-events'
+import type { ProviderUsageSnapshot } from '@shared/provider-usage-types'
+import type { ProviderUsageWorkerRequest } from '@shared/worker-message'
+import { isNonLocalUsageRequest } from './provider-usage/runtime'
+import { unavailableUsage } from './provider-usage/service'
+import { sessionFilePathsEqual } from '@shared/session-file-path'
 import type {
   WorkerCommandInfo,
   WorkerCompletionItem,
@@ -786,6 +791,34 @@ export class WorkerManager {
     const r = await this.request('getCommands')
     return { commands: (r.commands as WorkerCommandInfo[]) || [], hasSession: !!r.hasSession }
   }
+  /** Read-only: never acquire/focus/rebind a worker or fall back to foreground. */
+  async getProviderUsage(sessionFile: string, cwd: string, force = false): Promise<ProviderUsageSnapshot> {
+    if (isNonLocalUsageRequest({ sessionFile, workspaceId: cwd })) return unavailableUsage('remote-unsupported')
+    const sk = normalizeSessionKey(sessionFile)
+    const slot = sk ? this.pool.get(sk) : undefined
+    if (!slot || slot.stopping || slot.identityOpsInFlight || !slot.sessionFile
+      || normalizeSessionKey(slot.sessionFile) !== sk || !sessionFilePathsEqual(slot.cwd, cwd)) {
+      return unavailableUsage('session-unavailable')
+    }
+    if (slot.runtime.mode !== 'host') return unavailableUsage('remote-unsupported')
+    const worker = slot.worker
+    try {
+      const request: ProviderUsageWorkerRequest = { type: 'getProviderUsage', sessionFile: sk, cwd: slot.cwd, force }
+      const response = await slotRequest(slot, request.type, request, { timeoutMs: 8000 })
+      if (this.pool.get(sk) !== slot || slot.worker !== worker || slot.stopping || slot.identityOpsInFlight
+        || !slot.sessionFile || normalizeSessionKey(slot.sessionFile) !== sk || !sessionFilePathsEqual(slot.cwd, cwd)) {
+        return unavailableUsage('account-changed')
+      }
+      if (response.type !== 'getProviderUsage-done' || !response.snapshot || typeof response.snapshot !== 'object') {
+        return unavailableUsage('runtime-unavailable')
+      }
+      return response.snapshot as ProviderUsageSnapshot
+    } catch (error) {
+      const timeout = error instanceof Error && error.message === 'Worker request getProviderUsage timed out'
+      return unavailableUsage(timeout ? 'timeout' : 'request-failed', 'error')
+    }
+  }
+
   async getSessionContextPreview(sessionFile: string): Promise<WorkerContextPreview> {
     const sk = normalizeSessionKey(sessionFile)
     if (!sk) return null

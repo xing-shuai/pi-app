@@ -24,8 +24,8 @@ export function SettingsSection({
     <section className="settings-section">
       <div className="mb-2.5 flex flex-wrap items-end justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h3 className="text-[13.5px] font-semibold leading-5 text-foreground">{title}</h3>
-          {description && <p className="mt-0.5 max-w-2xl text-[12.5px] leading-[1.6] text-foreground-secondary">{description}</p>}
+          <h3 className="settings-section-title text-[18px] font-semibold leading-[1.5] text-foreground">{title}</h3>
+          {description && <p className="settings-section-description mt-0.5 max-w-2xl text-[14px] leading-[1.6] text-foreground-secondary">{description}</p>}
         </div>
         {action}
       </div>
@@ -67,11 +67,11 @@ export function SettingRow({
   return (
     <div className={cn('settings-row flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between', className)}>
       <div className="min-w-0 flex-1">
-        <div id={labelId} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13.5px] font-medium leading-5 text-foreground">
+        <div id={labelId} className="settings-row-label flex flex-wrap items-center gap-x-2 gap-y-1 text-[16px] font-medium leading-[1.5] text-foreground">
           <span>{label}</span>
           {badge}
         </div>
-        {description && <div className="mt-0.5 max-w-xl text-[12px] leading-[1.55] text-foreground-secondary">{description}</div>}
+        {description && <div className="settings-row-description mt-0.5 max-w-xl text-[14px] leading-[1.6] text-foreground-secondary">{description}</div>}
       </div>
       <div role="group" aria-labelledby={labelId} className="settings-row-control min-w-0 shrink-0 sm:ml-6">{children}</div>
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { ipcClient, onCloseRequested } from '@renderer/lib/ipc-client'
@@ -16,6 +16,7 @@ type CloseAction = 'wait' | 'now' | 'cancel'
 export function CloseDecisionDialog() {
   const { t } = useTranslation()
   const titleId = useId()
+  const dialog = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [waiting, setWaiting] = useState(false)
   const [info, setInfo] = useState<{ isStreaming: boolean; terminals: number }>({ isStreaming: true, terminals: 0 })
@@ -46,24 +47,34 @@ export function CloseDecisionDialog() {
 
   useEffect(() => {
     if (!open) return
+    const previous = document.activeElement as HTMLElement | null
+    const buttons = () => [...(dialog.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') || [])]
+    buttons().at(-1)?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') decide('cancel')
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); decide('cancel') }
+      if (e.key === 'Tab') {
+        const items = buttons(); const first = items[0]; const last = items.at(-1)
+        if (e.shiftKey && (document.activeElement === first || !dialog.current?.contains(document.activeElement))) { e.preventDefault(); last?.focus() }
+        else if (!e.shiftKey && (document.activeElement === last || !dialog.current?.contains(document.activeElement))) { e.preventDefault(); first?.focus() }
+      }
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    return () => { document.removeEventListener('keydown', onKey); previous?.focus() }
   }, [open, waiting])
 
   if (!open) return null
 
   return createPortal(
     <div
-      className="overlay-backdrop electron-no-drag fixed inset-0 z-[600] flex items-center justify-center bg-black/40 p-4"
+      data-close-decision-dialog="true"
+      className="overlay-backdrop electron-no-drag fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) decide('cancel')
       }}
     >
       <div
+        ref={dialog}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

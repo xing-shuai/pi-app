@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+import { useSwapFade } from '@renderer/hooks/use-ui-motion'
 import { scrollTimelineByDelta } from '@renderer/features/timeline/timeline-scroll-bridge'
 import { cn } from '@renderer/lib/utils'
 
@@ -7,11 +8,13 @@ import { cn } from '@renderer/lib/utils'
 export function MainColumnWithTimelineScroll({
   className,
   children,
+  motionKey,
 }: {
   className?: string
   children: ReactNode
+  motionKey?: string | null
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref = useSwapFade<HTMLDivElement>(motionKey)
 
   useEffect(() => {
     const el = ref.current

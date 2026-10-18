@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import type { LinkPreview } from '@shared/link-preview'
 import { Copy, ExternalLink, File, FolderOpen, Globe } from '@renderer/components/icons'
+import { isVirtualWorkspacePath } from '@shared/remote-code'
+import { useMarkdownWorkspaceOrigin } from '@renderer/lib/markdown-workspace-origin'
+import { openCodeFile } from '@renderer/lib/code-file-actions'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { localFileLineFromHref, localFilePathFromHref, openWorkspaceRelativePath } from '@renderer/lib/open-workspace-path'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -21,9 +24,10 @@ function previewText(value?: string): string | undefined {
   return textarea.value
 }
 
-export function MarkdownLink({ href, children, baseDirectory, ...props }: ComponentPropsWithoutRef<'a'> & { baseDirectory?: string }) {
+export function MarkdownLink({ href, children, baseDirectory, originWorkspaceId, ...props }: ComponentPropsWithoutRef<'a'> & { baseDirectory?: string; originWorkspaceId?: string | null }) {
   const { t } = useTranslation()
-  const workspaceRoot = useUIStore((store) => store.currentWorkspace)
+  const currentWorkspace = useUIStore((store) => store.currentWorkspace)
+  const workspaceRoot = useMarkdownWorkspaceOrigin(baseDirectory, originWorkspaceId)
   const filePath = href ? localFilePathFromHref(href, baseDirectory ?? workspaceRoot) : null
   const previewId = useId()
   const anchor = useRef<HTMLAnchorElement>(null)
@@ -54,7 +58,7 @@ export function MarkdownLink({ href, children, baseDirectory, ...props }: Compon
     setOpen(null)
     setPreview(null)
     return () => clearTimeout(timer.current)
-  }, [href, baseDirectory, workspaceRoot])
+  }, [href, baseDirectory, workspaceRoot, currentWorkspace])
 
   useEffect(() => {
     if (open !== 'preview' || !href || !isWeb) return
@@ -106,13 +110,14 @@ export function MarkdownLink({ href, children, baseDirectory, ...props }: Compon
   const openFile = async () => {
     close()
     anchor.current?.focus()
-    if (!filePath || openWorkspaceRelativePath(filePath, localFileLineFromHref(href!))) return
+    if (!filePath || useUIStore.getState().currentWorkspace !== workspaceRoot) return
+    if (openWorkspaceRelativePath(filePath, localFileLineFromHref(href!))) return
     if (!/^[/\\]|^[a-zA-Z]:[/\\]/.test(filePath)) {
       toast.error(t('common:sidebar.revealFailed'))
       return
     }
     try {
-      const result = await ipcClient.invoke('shell.openPath', { path: filePath })
+      const result = await openCodeFile(filePath, { workspaceId: workspaceRoot, line: localFileLineFromHref(href!) })
       if (!result?.ok) toast.error(t('common:sidebar.revealFailed'))
     } catch { toast.error(t('common:sidebar.revealFailed')) }
   }
@@ -124,7 +129,7 @@ export function MarkdownLink({ href, children, baseDirectory, ...props }: Compon
       return
     }
     try {
-      const result = await ipcClient.invoke('shell.showItemInFolder', { path: filePath })
+      const result = await openCodeFile(filePath, { workspaceId: workspaceRoot, reveal: true })
       if (!result?.ok) toast.error(t('common:sidebar.revealFailed'))
     } catch { toast.error(t('common:sidebar.revealFailed')) }
   }
@@ -220,7 +225,7 @@ export function MarkdownLink({ href, children, baseDirectory, ...props }: Compon
                 <button type="button" role="menuitem" className={cn(contextMenuItemClass, 'focus-visible:ring-2 focus-visible:ring-ring')} onClick={() => void openFile()}>
                   <File className="h-4 w-4" />{t('timeline:link.openFile')}
                 </button>
-                <button type="button" role="menuitem" className={cn(contextMenuItemClass, 'focus-visible:ring-2 focus-visible:ring-ring')} onClick={() => void revealFile()}>
+                <button type="button" role="menuitem" disabled={isVirtualWorkspacePath(workspaceRoot)} title={isVirtualWorkspacePath(workspaceRoot) ? 'Remote files cannot be revealed in the local file manager' : undefined} className={cn(contextMenuItemClass, 'focus-visible:ring-2 focus-visible:ring-ring')} onClick={() => void revealFile()}>
                   <FolderOpen className="h-4 w-4" />{t('files:menu.reveal')}
                 </button>
               </>}

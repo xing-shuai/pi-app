@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import { registerHandler } from '../registry'
 import { configStore } from '../../config-store'
+import { writeRemoteTerminal } from '../../remote-code'
 import { terminalProfiles, terminals } from '../../terminal/terminal-service'
 
 export function registerTerminalHandlers(): void {
@@ -35,6 +36,9 @@ export function registerTerminalHandlers(): void {
   // Keystrokes: fire-and-forget, no invoke round trip per key.
   ipcMain.removeAllListeners('ipc:terminal-write')
   ipcMain.on('ipc:terminal-write', (_e, payload: { id?: string; data?: string }) => {
-    if (typeof payload?.id === 'string' && typeof payload.data === 'string') terminals().write(payload.id, payload.data)
+    if (typeof payload?.id === 'string' && typeof payload.data === 'string') {
+      if (writeRemoteTerminal(payload.id, payload.data)) return
+      terminals().write(payload.id, payload.data)
+    }
   })
 }

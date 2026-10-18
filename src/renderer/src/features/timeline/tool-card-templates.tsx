@@ -6,6 +6,8 @@ import { useTranslation } from 'react-i18next'
 import { cn } from '@renderer/lib/utils'
 import i18n from '@renderer/lib/i18n'
 import { sanitizeHtml } from '@renderer/lib/sanitize'
+import { useMarkdownWorkspaceOrigin } from '@renderer/lib/markdown-workspace-origin'
+import { openCodeFile } from '@renderer/lib/code-file-actions'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { syntaxHighlight } from '@renderer/lib/syntax-highlight'
@@ -102,7 +104,7 @@ function InlineImage({ path, workspaceRoot, enabled }: { path: string; workspace
 // ── media template (image_gen / image_review / analyze_image / multimodal) ──
 const MediaTemplate: ToolCardComponent = ({ item }) => {
   const { t } = useTranslation()
-  const workspace = useUIStore((s) => s.currentWorkspace)
+  const workspace = useMarkdownWorkspaceOrigin()
   const [showInline, setShowInline] = useState(true)
   const details = item.toolDetails as Record<string, unknown> | null | undefined
   const assets = collectAssets(details, item.toolOutput || '')
@@ -114,8 +116,8 @@ const MediaTemplate: ToolCardComponent = ({ item }) => {
     ipcClient.invoke('adapter.config.get', { adapterId: item.toolName || '' }).then(() => setShowInline(true)).catch(() => setShowInline(true))
   }, [item.toolName])
 
-  const open = (p: string) => ipcClient.invoke('shell.openPath', { path: p }).catch(() => {})
-  const reveal = (p: string) => ipcClient.invoke('shell.showItemInFolder', { path: p }).catch(() => {})
+  const open = (p: string) => openCodeFile(p, { workspaceId: workspace }).catch(() => {})
+  const reveal = (p: string) => openCodeFile(p, { workspaceId: workspace, reveal: true }).catch(() => {})
   const textSummary = extractText(item.toolOutput || '')
   const previewPath = assets.find((a) => a.path)?.path
 
@@ -229,8 +231,9 @@ const DefaultTemplate: ToolCardComponent = ({ item }) => {
   const details = item.toolDetails as { paths?: string[]; format?: string } | null | undefined
   const detailPaths: string[] = Array.isArray(details?.paths) ? details.paths : []
   const isExportTool = detailPaths.length > 0 && (item.toolName === 'preview_export' || item.toolName === 'studio_export_pdf' || item.toolName === 'studio_export_html')
-  const open = (p: string) => ipcClient.invoke('shell.openPath', { path: p }).catch(() => {})
-  const reveal = (p: string) => ipcClient.invoke('shell.showItemInFolder', { path: p }).catch(() => {})
+  const workspace = useMarkdownWorkspaceOrigin()
+  const open = (p: string) => openCodeFile(p, { workspaceId: workspace }).catch(() => {})
+  const reveal = (p: string) => openCodeFile(p, { workspaceId: workspace, reveal: true }).catch(() => {})
   const out = item.toolOutput || ''
   const textSummary = extractText(out)
 

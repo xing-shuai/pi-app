@@ -4,6 +4,8 @@
 
 # pi Desktop
 
+> 此开发分支正在实现 Chat / Code 双区与持久化 Local Routines。使用方法及未完成项见 [第一阶段使用说明](./doc/guide/product-areas.zh-CN.md)，完整目标见 [Claude Desktop 对齐调研](./doc/CLAUDE-DESKTOP-ALIGNMENT.zh-CN.md)。SSH 已接入同一个 Code 工作台的会话、文件、Git/Review 和远端 PTY；离线 Runner 等仍未交付，见 [SSH 使用说明](./doc/guide/ssh-workspaces.zh-CN.md)。
+
 **[pi](https://github.com/earendil-works/pi) 编程 Agent 的桌面客户端。**<br/>
 还是终端里那个 Agent、那份 `~/.pi/agent`，多了时间线、Git Review、内置终端，还有一个能在手机上接着干活的 Android 应用。
 

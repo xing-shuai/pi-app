@@ -3,4 +3,6 @@ export type SessionMenuTarget = {
   sessionFile?: string
   title: string
   workspacePath: string
+  disconnected?: boolean
+  onContinue?: () => void
 }

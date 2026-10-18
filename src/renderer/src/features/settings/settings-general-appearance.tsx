@@ -23,7 +23,7 @@ import {
   type AppIconComponent,
 } from '@renderer/components/icons'
 import { ICON_THEMES, type IconTheme } from '@shared/icon-theme'
-import { applyUiZoom, readUiZoom } from '@renderer/lib/ui-zoom'
+import { applyUiZoom, readUiZoom, UI_ZOOM_LEVELS } from '@renderer/lib/ui-zoom'
 import {
   formatShortcut,
   readShortcutBindings,
@@ -575,7 +575,7 @@ export function AppearanceSettings() {
       <SettingsSection title={t('settings:appearance.density')}>
         <SettingRow label={t('settings:appearance.zoom')} description={t('settings:appearance.zoomDesc')}>
           <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('settings:appearance.zoom')}>
-            {([0.9, 1, 1.1] as const).map((n) => (
+            {UI_ZOOM_LEVELS.map((n) => (
               <button
                 key={n}
                 type="button"
@@ -589,7 +589,7 @@ export function AppearanceSettings() {
                   applyUiZoom(n)
                 }}
               >
-                {Math.round(n * 100)}%
+                {n === UI_ZOOM_LEVELS[0] ? '83.3%' : `${Math.round(n * 100)}%`}
               </button>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useCodeWorkspaceActive } from '@renderer/features/shell/workspace-activity'
 import { toast } from 'sonner'
 import { formatAnnotationsForComposer, type BrowserAnnotation, type ComposerLabels, type ElementDescriptor } from '@shared/browser-types'
 import { ipcClient } from '@renderer/lib/ipc-client'
@@ -53,6 +54,7 @@ export function AnnotationLayer({
   initialSnapshot: string
   onExit: () => void
 }) {
+  const workspaceActive = useCodeWorkspaceActive()
   const { t } = useTranslation('browser')
   const rootRef = useRef<HTMLDivElement>(null)
   const [snapshot, setSnapshot] = useState(initialSnapshot)
@@ -248,7 +250,7 @@ export function AnnotationLayer({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && pending) {
+      if (workspaceActive && e.key === 'Escape' && pending) {
         e.preventDefault()
         e.stopPropagation()
         setPending(null)
@@ -256,7 +258,7 @@ export function AnnotationLayer({
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [pending])
+  }, [pending, workspaceActive])
 
   useEffect(() => () => {
     const w = wheel.current

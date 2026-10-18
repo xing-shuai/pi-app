@@ -230,7 +230,7 @@ export function BranchStatusTrigger() {
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={t('common:branches.trigger', { branch: label })}
-        title={[status.upstream ? `${label} → ${status.upstream}` : label, status.dirty ? t('common:branches.dirty', { count: status.dirty }) : ''].filter(Boolean).join(' · ')}
+        data-app-tooltip={[status.upstream ? `${label} → ${status.upstream}` : label, status.dirty ? t('common:branches.dirty', { count: status.dirty }) : ''].filter(Boolean).join(' · ')}
         disabled={busy}
         onClick={() => setOpen((v) => !v)}
       >

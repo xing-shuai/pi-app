@@ -1,0 +1,122 @@
+/* Detail surfaces only. Geometry is in design pixels; the shell owns UI zoom. */
+.reference-settings-dialog .settings-layout {
+  --bg-base: #1b1b1a;
+  --bg-hover: #292928;
+  --bg-active: #383837;
+  --product-type-body: 16px;
+  --product-type-secondary: 14px;
+  --product-type-micro: 12px;
+  background: #1b1b1a;
+  color: #ecece9;
+  font-size: var(--product-type-body);
+}
+.reference-settings-dialog .settings-nav {
+  width: 254px;
+  background: #151515;
+  border-right: 1px solid #30302e;
+}
+.reference-settings-dialog .settings-nav .overlay-scroll-pane { padding: 14px 14px 20px; }
+.reference-settings-dialog .settings-nav-content { gap: 26px; }
+.reference-settings-dialog .settings-nav-caption {
+  color: #8d8d86;
+  font-size: var(--product-type-secondary, 14px);
+  font-weight: 400;
+  letter-spacing: 0;
+  padding: 0 9px 12px;
+}
+.reference-settings-dialog .settings-nav-item {
+  min-height: 40px;
+  padding: 7px 10px;
+  gap: 16px;
+  color: #c2c2b9;
+  font-size: var(--product-type-body, 16px);
+  border-radius: 9px;
+}
+.reference-settings-dialog .settings-nav-item[aria-current="page"] { color: #f1f1ee; background: #383837; }
+.reference-settings-dialog .settings-nav-item:disabled { opacity: .46; cursor: not-allowed; background: transparent; }
+.reference-settings-dialog .settings-nav-icon { width: 20px; height: 20px; }
+.settings-nav-detail { display: block; font-size: var(--product-type-micro, 12px); opacity: .65; line-height: 1.3; }
+.reference-settings-dialog .workbench-search { height: 38px; margin: 0; background: #222221; border: 1px solid #383836; border-radius: 9px; }
+.reference-settings-dialog .settings-main { background: #1b1b1a; }
+.reference-settings-dialog .settings-main-scroll { padding: 28px 28px 40px; }
+.reference-settings-dialog .settings-page-enter { max-width: none; }
+.reference-settings-dialog .settings-page-title { font-size: 24px; }
+.reference-settings-dialog .usage-settings-panel > .settings-page-header { margin-bottom: 8px; }
+.reference-settings-dialog .usage-settings-panel .settings-page-title { font-size: 18px; }
+.reference-usage-availability { display: none; }
+.reference-settings-dialog .reference-usage-availability { display: block; border-bottom: 1px solid #30302e; padding-bottom: 24px; margin-bottom: 8px; }
+.reference-usage-availability h3 { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 20px; font-size: var(--product-type-body, 16px); font-weight: 500; }
+.reference-usage-availability h3 span, .reference-usage-availability dd { color: #99998f; font-weight: 400; }
+.reference-usage-availability dl > div { display: flex; justify-content: space-between; gap: 20px; padding: 14px 0; }
+.reference-usage-availability p { margin-top: 14px; max-width: 760px; color: #a4a49a; font-size: var(--product-type-secondary, 14px); line-height: 1.6; }
+
+.reference-account-menu,
+.code-usage-popover {
+  --product-type-body: 16px;
+  --product-type-secondary: 14px;
+  --product-type-micro: 12px;
+  font-family: var(--font-sans);
+  font-size: var(--product-type-body);
+  line-height: 1.5;
+  color: #e6e6e2;
+  background: #20201f;
+  border: 1px solid #3a3a36;
+  border-radius: 13px;
+  box-shadow: 0 12px 36px #0006;
+}
+.reference-account-menu {
+  position: fixed;
+  z-index: 130;
+  left: 10px;
+  bottom: 54px;
+  width: 310px;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100dvh - 70px);
+  overflow-y: auto;
+  padding: 8px 12px;
+}
+.reference-account-identity { display: flex; flex-direction: column; gap: 4px; padding: 2px 3px 6px; }
+.reference-account-identity strong { font-size: var(--product-type-secondary); font-weight: 500; }
+.reference-account-identity span { color: #92928a; font-size: var(--product-type-micro); }
+.reference-account-menu [role="separator"] { height: 1px; background: #3a3a36; margin: 7px 0; }
+.reference-account-menu button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 30px;
+  gap: 9px;
+  padding: 3px 4px;
+  border-radius: 5px;
+  text-align: left;
+  color: inherit;
+  font-size: var(--product-type-body);
+}
+.reference-account-menu button > span { flex: 1; }
+.reference-account-menu button > svg { flex-shrink: 0; }
+.reference-account-menu kbd { color: #8d8d84; font-family: inherit; font-size: var(--product-type-micro); }
+.reference-account-menu button:hover:not(:disabled), .reference-account-menu button:focus-visible { background: #363634; outline: none; }
+.reference-account-menu button:disabled { color: #73736d; cursor: not-allowed; }
+.reference-account-language { margin: 3px 0 3px 25px; padding: 4px 6px; border-left: 1px solid #484842; }
+.reference-account-language button[aria-checked="true"] { color: #93baf2; }
+.reference-account-menu button:focus-visible, .code-usage-trigger:focus-visible, .code-usage-details:focus-visible { outline: 2px solid #86a5ce; outline-offset: 1px; }
+
+.code-usage-trigger { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 7px; color: #6a9fe5; }
+.code-usage-trigger:hover, .code-usage-trigger[aria-expanded="true"] { background: #2a2a28; }
+.code-usage-trigger circle { fill: none; stroke-width: 2.5; }
+.code-usage-trigger .track { stroke: #3c3c39; }
+.code-usage-trigger .value { stroke: currentColor; }
+.code-usage-trigger .is-high { color: #e68c74; }
+.code-usage-popover { max-width: calc(100vw - 16px); }
+.code-usage-content { padding: 12px 14px; overflow-y: auto; outline: none; }
+.code-usage-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; font-size: var(--product-type-secondary); }
+.code-usage-heading h2 { font-size: inherit; font-weight: 400; color: #b4b4aa; }
+.code-usage-heading span { color: #a5a59b; font-variant-numeric: tabular-nums; }
+.code-usage-progress { height: 5px; margin: 10px 0; overflow: hidden; background: #383835; border-radius: 4px; }
+.code-usage-progress > span { display: block; height: 100%; background: #4c9ae4; border-radius: inherit; }
+.code-usage-note { margin-top: 6px; color: #96968d; font-size: var(--product-type-micro); line-height: 1.5; }
+.code-usage-divider { height: 1px; background: #383835; margin: 12px 0; }
+.code-usage-content h3 { display: flex; justify-content: space-between; gap: 12px; color: #a6a69d; font-size: var(--product-type-secondary); font-weight: 400; margin: 12px 0 8px; }
+.code-usage-content dl > div { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0; font-size: var(--product-type-secondary); }
+.code-usage-content dd { color: #a6a69d; font-variant-numeric: tabular-nums; }
+.code-usage-details { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 3px 8px; border-radius: 5px; background: #383835; font-size: var(--product-type-secondary); }
+.code-usage-details:hover { background: #454541; }

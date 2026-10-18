@@ -5,6 +5,15 @@ import type { CompatibilityLevel } from './extension-types'
 import type { ModelAuthProjection } from './model-auth-projection'
 import type { AdapterCatalog } from '../../src/extension-compat/adapter-schema'
 import type { SessionContextPreview } from './session-context-preview'
+import type { SshCommand, SshFilesResult, SshProfile, SshRecord, SshStatus } from './ssh-workspace'
+import type { ChatMessage, ChatSessionInfo, ChatThinkingLevel, ChatModelInfo } from './chat-types'
+import type { Routine, RoutineRun } from './routine-types'
+import type { EnvironmentList } from './execution-target'
+import type { RemoteCodeConnection, RemoteCodeSnapshot, RemoteCodeWorkspace } from './remote-code'
+import type { HostDirectory } from './ssh-host-types'
+import type { SessionCatalogRequest, SessionCatalogResult } from './session-catalog-types'
+import type { ProviderUsageRequest, ProviderUsageSnapshot } from './provider-usage-types'
+import type { LocalFolderBrowseRequest, LocalFolderBrowseResult, LocalFolderResolveRequest, LocalFolderResolveResult } from './local-folder-types'
 
 // ── Workspace ──
 export interface WorkspaceOpenRequest { path?: string; awaitWorker?: boolean }
@@ -128,10 +137,13 @@ export interface ModelListResponse { models: ModelInfo[] }
 export interface ModelSetRequest {
   sessionId: string
   sessionFile?: string
+  /** Remote draft metadata only; never a history-session binding. */
+  workspaceId?: string
+  draft?: boolean
   provider?: string
   modelId: string
 }
-export interface ModelSetResponse { modelId: string }
+export interface ModelSetResponse { modelId: string; thinkingLevel?: string; availableThinkingLevels?: string[] }
 export interface ModelCycleRequest { sessionId: string; direction?: 'next' | 'prev' }
 export interface ModelCycleResponse { modelId: string; thinkingLevel: string }
 
@@ -200,6 +212,9 @@ export type ThinkingLevel = 'off' | 'minimal' | 'low' | 'medium' | 'high' | 'xhi
 export interface ThinkingLevelSetRequest {
   sessionId: string
   sessionFile?: string
+  workspaceId?: string
+  /** Exact remote workspace probe, not the last selected history. */
+  draft?: boolean
   level: ThinkingLevel
 }
 export interface ThinkingLevelSetResponse { level: string }
@@ -216,6 +231,8 @@ export interface CommandsListResponse { commands: CommandInfo[] }
 
 // ── Review ──
 export interface ReviewGetDiffRequest {
+  workspaceId?: string
+  cwd?: string
   sessionId: string
   scope: 'turn' | 'session' | 'git'
   turnId?: string
@@ -302,6 +319,43 @@ export interface EventsSubscribeResponse { subscriptionId: string }
 
 // ── IPC Method Map ──
 export interface IpcMethodMap {
+  'environment.list': { request: Record<string, never>; response: EnvironmentList }
+  'app.quit': { request: Record<string, never>; response: { ok: true } }
+  'code.sessions.list': { request: SessionCatalogRequest; response: SessionCatalogResult }
+  'code.sessions.prepareOpen': { request: { workspaceId: string }; response: { workspace: RemoteCodeWorkspace } }
+  'code.environment.get': { request: Record<string, never>; response: RemoteCodeSnapshot }
+  'code.environment.local': { request: Record<string, never>; response: { snapshot: RemoteCodeSnapshot; recentProjects: string[]; currentProject: string | null } }
+  'code.ssh.connect': { request: { profileId?: string; profile?: SshProfile; password?: string; activate?: boolean }; response: { connection: RemoteCodeConnection; snapshot: RemoteCodeSnapshot } }
+  'code.ssh.select': { request: { profileId: string }; response: { snapshot: RemoteCodeSnapshot } }
+  'code.ssh.browse': { request: { profileId: string; path?: string }; response: HostDirectory }
+  'code.ssh.prepareWorkspace': { request: { profileId: string; path: string }; response: { path: string; name: string; hostLabel: string; trustToken: string; alreadyTrusted: boolean } }
+  'code.ssh.openWorkspace': { request: { profileId: string; path: string; trustToken?: string }; response: { workspace: RemoteCodeWorkspace; snapshot: RemoteCodeSnapshot } }
+  'code.ssh.disconnect': { request: { profileId: string; force?: boolean }; response: { snapshot: RemoteCodeSnapshot } }
+  'desktop.identity': { request: Record<string, never>; response: { userName: string } }
+  'chat.list': { request: Record<string, never>; response: { sessions: ChatSessionInfo[] } }
+  'chat.create': { request: { title?: string; model?: string; thinkingLevel?: ChatThinkingLevel }; response: { session: ChatSessionInfo } }
+  'chat.open': { request: { id: string }; response: { session: ChatSessionInfo; messages: ChatMessage[]; revision?: number } }
+  'chat.send': { request: { id: string; text: string; images?: ChatMessage['images'] }; response: { accepted: true } }
+  'providerUsage.get': { request: ProviderUsageRequest; response: ProviderUsageSnapshot }
+  'chat.setThinking': { request: { id: string; level: ChatThinkingLevel }; response: { session: ChatSessionInfo } }
+  'local.folders.browse': { request: LocalFolderBrowseRequest; response: LocalFolderBrowseResult }
+  'local.folders.resolve': { request: LocalFolderResolveRequest; response: LocalFolderResolveResult }
+  'chat.abort': { request: { id: string }; response: { ok: true } }
+  'chat.rename': { request: { id: string; title: string }; response: { session: ChatSessionInfo } }
+  'chat.delete': { request: { id: string }; response: { ok: true } }
+  'chat.models': { request: Record<string, never>; response: { models: ChatModelInfo[] } }
+  'routines.list': { request: Record<string, never>; response: { routines: Routine[]; runs: RoutineRun[]; runtime: { kind: 'desktop-local'; requiresAppOpen: true } } }
+  'routines.save': { request: { routine: Routine; confirmedExecution?: boolean }; response: { routine: Routine } }
+  'routines.delete': { request: { id: string }; response: { ok: true } }
+  'routines.run': { request: { id: string }; response: { run: RoutineRun } }
+  'routines.cancel': { request: { runId: string }; response: { ok: true } }
+  'ssh.profiles': { request: Record<string, never>; response: { profiles: SshProfile[]; status: SshStatus; authCapabilities?: { password: boolean; passwordUnavailableReason?: string } } }
+  'ssh.saveProfile': { request: SshProfile; response: { profile: SshProfile } }
+  'ssh.deleteProfile': { request: { id: string }; response: { ok: boolean } }
+  'ssh.connect': { request: { id: string; resume?: boolean; password?: string }; response: SshStatus }
+  'ssh.disconnect': { request: Record<string, never>; response: { ok: boolean } }
+  'ssh.command': { request: SshCommand; response: SshRecord }
+  'ssh.files': { request: { action: 'list' | 'read'; path: string }; response: SshFilesResult }
   'adapters.json.catalog': { request: { workspaceId?: string; refresh?: boolean }; response: AdapterCatalog }
   'adapters.catalog': { request: { workspaceId?: string; refresh?: boolean }; response: { adapters: Array<{ id: string; pluginId: string; displayName: string; adapterJson?: AdapterCatalog['adapters'][number] }>; errors?: AdapterCatalog['errors'] } }
   'adapter.config.get': { request: { adapterId: string; workspaceId?: string }; response: { view: Record<string, unknown> } }

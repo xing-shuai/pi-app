@@ -1,5 +1,6 @@
 import { ipcClient } from '@renderer/lib/ipc-client'
-import { terminalActions, useTerminalStore, type ShellProfile, type TerminalPaneState } from './terminal-store'
+import { useUIStore } from '@renderer/stores/ui-store'
+import { terminalActions, terminalProfilesForWorkspace, terminalTabsForWorkspace, terminalWorkspaceKey, useTerminalStore, type ShellProfile, type TerminalPaneState, type TerminalWorkspaceId } from './terminal-store'
 
 type Writer = (data: string) => void
 
@@ -29,35 +30,63 @@ export function attachWriter(id: string, w: Writer): () => void {
   }
 }
 
+/** Check at send time too: a hidden xterm can still own focus or finish an async paste. */
+export function canInteractWithPty(id: string): boolean {
+  const s = useTerminalStore.getState()
+  return s.inputEnabled && s.open && terminalTabsForWorkspace(s.tabs, useUIStore.getState().currentWorkspace)
+    .some((tab) => tab.id === s.activeTab && tab.panes.some((pane) => pane.ptyId === id))
+}
+
 export function writeToPty(id: string, data: string): void {
-  window.piDesktop?.terminalWrite?.(id, data)
+  // Keep the existing fast ipc:terminal-write transport. Main pins the globally unique id to its namespace.
+  if (canInteractWithPty(id)) window.piDesktop?.terminalWrite?.(id, data)
+}
+
+function paneWorkspace(id: string): TerminalWorkspaceId | undefined {
+  const pane = useTerminalStore.getState().tabs.flatMap((tab) => tab.panes).find((pane) => pane.ptyId === id)
+  return pane ? pane.workspaceId ?? null : undefined
 }
 
 export function resizePty(id: string, cols: number, rows: number): void {
-  void ipcClient.invoke('terminal.resize', { id, cols, rows }).catch(() => {})
+  void ipcClient.invoke('terminal.resize', { id, cols, rows, workspaceId: paneWorkspace(id) }).catch(() => {})
 }
 
-export async function loadProfiles(refresh = false): Promise<ShellProfile[]> {
-  const cached = useTerminalStore.getState().profiles
+const profileLoads = new Map<string, { promise: Promise<ShellProfile[]> }>()
+
+export async function loadProfiles(refresh = false, workspaceId: TerminalWorkspaceId = useUIStore.getState().currentWorkspace): Promise<ShellProfile[]> {
+  const key = terminalWorkspaceKey(workspaceId)
+  const cached = terminalProfilesForWorkspace(useTerminalStore.getState().profilesByWorkspace, workspaceId)
   if (cached && !refresh) return cached
-  const r = (await ipcClient.invoke('terminal.profiles', { refresh })) as { profiles?: ShellProfile[] }
-  const profiles = r?.profiles ?? []
-  terminalActions.setProfiles(profiles)
-  return profiles
+  const loading = profileLoads.get(key)
+  if (loading && !refresh) return loading.promise
+  const request = { promise: Promise.resolve([] as ShellProfile[]) }
+  request.promise = (async () => {
+    const r = (await ipcClient.invoke('terminal.profiles', { refresh, cwd: workspaceId ?? undefined, workspaceId })) as { profiles?: ShellProfile[] }
+    const profiles = r?.profiles ?? []
+    if (profileLoads.get(key) === request) terminalActions.setProfiles(profiles, workspaceId)
+    return profiles
+  })().finally(() => {
+    if (profileLoads.get(key) === request) profileLoads.delete(key)
+  })
+  profileLoads.set(key, request)
+  return request.promise
 }
 
 /** Spawn a shell (default: pi's own) in `cwd`; the pane sizes it on mount. */
-export async function spawnPane(profileId: string | undefined, cwd: string | undefined): Promise<TerminalPaneState | { error: string }> {
+export async function spawnPane(profileId: string | undefined, workspaceId: TerminalWorkspaceId = useUIStore.getState().currentWorkspace): Promise<TerminalPaneState | { error: string }> {
+  if (!useTerminalStore.getState().inputEnabled) return { error: 'terminal execution locked' }
   wire()
-  const r = (await ipcClient.invoke('terminal.create', { profileId, cwd, cols: 100, rows: 24 })) as { ok: boolean; id?: string; profile?: ShellProfile; error?: string }
+  const r = (await ipcClient.invoke('terminal.create', { profileId, cwd: workspaceId ?? undefined, workspaceId, cols: 100, rows: 24 })
+    .catch((error: unknown) => ({ ok: false, error: error instanceof Error ? error.message : 'spawn failed' }))) as { ok: boolean; id?: string; profile?: ShellProfile; error?: string }
   if (!r?.ok || !r.id || !r.profile) return { error: r?.error || 'spawn failed' }
-  return { ptyId: r.id, profile: r.profile }
+  if (Boolean(workspaceId?.startsWith('/__pi_ssh__/')) !== r.id.startsWith('ssh-term-')) return { error: 'terminal namespace mismatch' }
+  return { ptyId: r.id, profile: r.profile, workspaceId }
 }
 
-export function killPty(id: string): void {
+export function killPty(id: string, workspaceId: TerminalWorkspaceId | undefined = paneWorkspace(id)): void {
   writers.delete(id)
   pending.delete(id)
-  void ipcClient.invoke('terminal.kill', { id }).catch(() => {})
+  void ipcClient.invoke('terminal.kill', { id, workspaceId }).catch(() => {})
 }
 
 /** Quote a path for the shell it is typed into (WSL sees Windows drives under /mnt). */

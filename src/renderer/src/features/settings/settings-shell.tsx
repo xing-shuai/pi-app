@@ -29,8 +29,8 @@ export function SettingsMain({
     if (scrollRef.current) scrollRef.current.scrollTop = 0
   }, [pageKey])
   return (
-    <main className={cn('settings-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-base)]', className)}>
-      <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="w-full px-5 pb-10 pt-7 sm:px-8 lg:px-10" scrollRef={scrollRef}>
+    <main data-settings-page={pageKey} className={cn('settings-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[var(--bg-base)]', className)}>
+      <OverlayScrollHost className="min-h-0 flex-1" scrollClassName="settings-main-scroll w-full px-5 pb-10 pt-7 sm:px-8 lg:px-10" scrollRef={scrollRef}>
         <div key={pageKey} className={cn('settings-page-enter', wide ? SETTINGS_COLUMN_WIDE : SETTINGS_COLUMN)}>
           {children}
         </div>
@@ -52,9 +52,9 @@ export function SettingsPageHeader({
   return (
     <div className="settings-page-header mb-7 flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-[20px] font-semibold leading-7 tracking-tight text-foreground">{title}</h2>
+        <h2 className="settings-page-title text-[24px] font-semibold leading-[1.5] tracking-tight text-foreground">{title}</h2>
         {description ? (
-          <p className="mt-1.5 max-w-2xl text-[13px] leading-[1.65] text-foreground-secondary">{description}</p>
+          <p className="settings-page-description mt-1.5 max-w-2xl text-[14px] leading-[1.6] text-foreground-secondary">{description}</p>
         ) : null}
       </div>
       {action ? <div className="shrink-0 pt-0.5">{action}</div> : null}
@@ -84,7 +84,7 @@ export function SettingsNav({
 export function SettingsNavGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="settings-nav-group flex flex-col gap-0.5">
-      <div className="px-3 pb-1 text-[11px] font-medium tracking-wide text-foreground-secondary/65">{label}</div>
+      <div className="settings-nav-caption px-3 pb-1 text-[14px] font-medium leading-[1.5] tracking-wide text-foreground-secondary">{label}</div>
       {children}
     </div>
   )
@@ -95,26 +95,37 @@ export function SettingsNavItem({
   icon: Icon,
   label,
   onClick,
+  disabled = false,
+  title,
+  detail,
+  pageKey,
 }: {
   active: boolean
   icon: AppIconComponent
   label: string
   onClick: () => void
+  disabled?: boolean
+  title?: string
+  detail?: string
+  pageKey?: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
+      title={title}
+      data-settings-nav-page={pageKey}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'settings-nav-item flex min-h-9 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px]',
+        'settings-nav-item flex min-h-9 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[16px] leading-[1.5]',
         active
           ? 'bg-[var(--bg-active)] font-medium text-foreground'
           : 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground',
       )}
     >
       <Icon className="settings-nav-icon h-4 w-4 shrink-0" strokeWidth={1.5} />
-      <span className="truncate">{label}</span>
+      <span className="min-w-0 truncate">{label}{detail && <small className="settings-nav-detail">{detail}</small>}</span>
     </button>
   )
 }

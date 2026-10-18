@@ -9,9 +9,9 @@ const R = 6.5
 const C = 2 * Math.PI * R
 
 /** Context usage as a small ring (exact numbers in the tooltip) plus live tokens/s while running. */
-export function ComposerMetricsInline({ metrics, isRunning }: { metrics: Metrics; isRunning?: boolean }) {
+export function ComposerMetricsInline({ metrics, isRunning, showContext = true }: { metrics: Metrics; isRunning?: boolean; showContext?: boolean }) {
   const { t } = useTranslation()
-  const showCtx = metrics.contextWindow != null || metrics.estContextTokens != null
+  const showCtx = showContext && (metrics.contextWindow != null || metrics.estContextTokens != null)
   const pct = Math.max(0, Math.min(100, metrics.ctxPct ?? 0))
   const tpsLabel = metrics.tps != null && metrics.tps > 0 ? `${Math.round(metrics.tps)} tps` : null
 

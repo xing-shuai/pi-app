@@ -1,0 +1,90 @@
+/* Self-imported by the two owned composer popovers; portals need no shell ancestry.
+   Content caps preserve the shared popover's smaller anchor-space max-height. */
+.composer-popover.compact-composer-popover {
+  box-sizing: border-box;
+  max-width: calc(100vw / var(--ui-zoom, 1) - 16px);
+  border: 1px solid #373736;
+  border-radius: 12px;
+  background: #20201f;
+  color: #e5e5df;
+  font-size: 16px;
+  line-height: 1.4;
+  overflow: hidden;
+}
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content) {
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: #80808066 transparent;
+}
+@supports selector(::-webkit-scrollbar) {
+  .composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content)::-webkit-scrollbar { width: 4px; height: 4px; }
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content)::-webkit-scrollbar-track,
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content)::-webkit-scrollbar-corner { background: transparent; }
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content)::-webkit-scrollbar-thumb { background: #80808066; border-radius: 999px; }
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content)::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.composer-popover.compact-composer-popover :is(.code-usage-content, .compact-tools-content):hover::-webkit-scrollbar-thumb { background: #80808088; }
+.composer-popover.compact-composer-popover :is(button, summary):focus-visible { outline: 2px solid #86a5ce; outline-offset: 2px; }
+.composer-popover.compact-composer-popover :is(p, h2, h3, dl, dd) { margin: 0; }
+.composer-popover.compact-composer-popover :is(p, span, dt, dd, h2, h3, time) { min-width: 0; overflow-wrap: anywhere; }
+.composer-popover.compact-composer-popover button { font: inherit; }
+.composer-popover.compact-composer-popover .code-usage-heading { gap: 4px 8px; font-size: 14px; line-height: 1.4; }
+.composer-popover.compact-composer-popover .code-usage-heading h2 { color: #e5e5df; font-weight: 500; }
+.composer-popover.compact-composer-popover .code-usage-heading span { color: #b7b7af; }
+.composer-popover.compact-composer-popover .code-usage-progress { height: 4px; margin: 8px 0 12px; }
+.composer-popover.compact-composer-popover .code-usage-plan { border-top: 1px solid #373736; padding-top: 10px; }
+.compact-provider-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.composer-popover.compact-composer-popover .compact-provider-heading h3 { display: block; color: #e5e5df; font-size: 16px; font-weight: 500; margin: 0; }
+.compact-provider-heading h3 span { color: #b7b7af; font-weight: 400; }
+.compact-popover-icon { display: inline-flex; flex: 0 0 28px; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; color: #b7b7af; }
+.compact-popover-icon:hover:not(:disabled) { background: #30302e; color: #fff; }
+.compact-popover-icon:disabled { color: #85857e; cursor: wait; }
+.compact-usage-window { margin: 10px 0; }
+.compact-usage-window-heading { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 2px 8px; font-size: 14px; color: #b7b7af; }
+.compact-usage-window-heading strong { font-weight: 500; color: #e5e5df; font-variant-numeric: tabular-nums; }
+.compact-allowance-progress { height: 4px; border-radius: 4px; background: #383835; margin: 6px 0 4px; overflow: hidden; }
+.compact-allowance-progress > span { display: block; height: 100%; border-radius: inherit; background: #80b89c; }
+.compact-usage-window > time { display: block; color: #b7b7af; font-size: 14px; }
+.composer-popover.compact-composer-popover .code-usage-content dl > div { display: flex; justify-content: space-between; gap: 8px; margin: 6px 0; font-size: 14px; }
+.composer-popover.compact-composer-popover .code-usage-content dd { color: #e5e5df; text-align: right; font-variant-numeric: tabular-nums; }
+.composer-popover.compact-composer-popover .code-usage-note { margin: 6px 0; color: #b7b7af; font-size: 14px; line-height: 1.4; }
+.compact-details-toggle { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 32px; margin-top: 8px; color: #c7c7bf; }
+.composer-popover.compact-composer-popover .compact-details-toggle { font-size: 14px; }
+.compact-details-toggle:hover { color: #fff; }
+.compact-usage-details { border-top: 1px solid #373736; padding-top: 8px; }
+.composer-popover.compact-composer-popover .code-usage-recorded h3 { font-size: 14px; font-weight: 500; margin: 10px 0 6px; color: #e5e5df; }
+.composer-popover.compact-composer-popover .code-usage-details { min-height: 32px; padding: 4px 8px; margin: 8px 0; font-size: 14px; background: #30302e; }
+.compact-section-caption { color: #b7b7af; font-size: 14px; font-weight: 500; }
+.compact-capability-card { margin-top: 10px; padding: 10px; border: 1px solid #373736; border-radius: 8px; background: #242423; }
+.compact-capability-heading { display: flex; align-items: center; gap: 8px; font-size: 16px; line-height: 24px; }
+.compact-capability-heading > svg { flex: 0 0 auto; color: #b7b7af; }
+.compact-capability-heading > span { flex: 1; }
+.compact-capability-heading > [role="switch"] { flex-shrink: 0; }
+.composer-popover.compact-composer-popover .compact-help { margin-top: 5px; color: #b7b7af; font-size: 14px; line-height: 1.4; }
+.composer-popover.compact-composer-popover .compact-capability-cost { color: #b3c6b8; font-variant-numeric: tabular-nums; }
+.compact-segments { display: flex; gap: 2px; padding: 3px; margin-top: 8px; border: 1px solid #41413d; border-radius: 8px; background: #1c1c1b; }
+.composer-popover.compact-composer-popover .compact-segments > button { flex: 1 1 0; min-width: 0; min-height: 32px; padding: 4px; border-radius: 5px; font-size: 16px; line-height: 20px; color: #b7b7af; }
+.compact-segments > button[aria-checked="true"] { background: #d3d1c7; color: #20201f !important; }
+.compact-segments > button:hover:not(:disabled):not([aria-checked="true"]) { background: #343431; color: #fff; }
+.composer-popover.compact-composer-popover .compact-segments > button:disabled { color: #92928a; cursor: not-allowed; }
+.compact-setup-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; }
+.composer-popover.compact-composer-popover .compact-text-action { color: #b4cdef; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; }
+.compact-more-info { margin-top: 6px; font-size: 14px; color: #b7b7af; }
+.compact-more-info > summary { cursor: pointer; padding: 4px 0; min-height: 28px; }
+.compact-tools-global { border-top: 1px solid #373736; margin-top: 12px; padding-top: 10px; }
+.compact-tools-global > .compact-capability-heading { margin-top: 8px; }
+.compact-tools-note { border-top: 1px solid #373736; padding-top: 6px; margin-top: 10px; }
+@media (forced-colors: active) {
+  .composer-popover.compact-composer-popover { border-color: ButtonText; }
+  .compact-segments > button[aria-checked="true"] { outline: 1px solid Highlight; }
+}

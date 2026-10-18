@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useCodeWorkspaceActive } from '@renderer/features/shell/workspace-activity'
 import { toast } from 'sonner'
 import {
   browserSearchUrl,
@@ -31,6 +32,7 @@ const isMod = (e: { ctrlKey: boolean; metaKey: boolean }) =>
   window.piDesktop?.platform === 'darwin' ? e.metaKey : e.ctrlKey
 
 export function BrowserPanel() {
+  const workspaceActive = useCodeWorkspaceActive()
   const { t } = useTranslation('browser')
   const rootRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -102,7 +104,7 @@ export function BrowserPanel() {
 
   const fitted = fitViewport(viewportMode, area)
   const userZoom = (activeTabId && zoomByTab[activeTabId]) || 1
-  useViewPlacement(viewportRef, activeTabId, pageShown && !hiddenForOverlay && !annotating, fitted.zoom * userZoom)
+  useViewPlacement(viewportRef, activeTabId, workspaceActive && pageShown && !hiddenForOverlay && !annotating, fitted.zoom * userZoom)
 
   const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
   const zoom = useCallback(
@@ -313,6 +315,7 @@ export function BrowserPanel() {
           return
         }
         if (event.type === 'shortcut') {
+          if (!workspaceActive) return
           if (event.action === 'focus-address') focusAddress()
           else if (event.action === 'new-tab') void openTab()
           else if (event.action === 'close-tab') closeActive()
@@ -326,7 +329,7 @@ export function BrowserPanel() {
           else toast.error(t('toast.downloadFailed', { name: event.fileName }))
         }
       }),
-    [focusAddress, openTab, closeActive, toggleAnnotate, openFind, zoom, t],
+    [focusAddress, openTab, closeActive, toggleAnnotate, openFind, zoom, t, workspaceActive],
   )
 
   // Expanded mode belongs to this panel only; Esc returns to the side panel.
@@ -335,7 +338,7 @@ export function BrowserPanel() {
   }, [activePanel])
   useEffect(() => () => { useUIStore.setState({ browserChatExpand: false }) }, [])
   useEffect(() => {
-    if (!browserChatExpand) return
+    if (!workspaceActive || !browserChatExpand) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       if (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"], input')) return
@@ -345,7 +348,7 @@ export function BrowserPanel() {
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [browserChatExpand])
+  }, [browserChatExpand, workspaceActive])
 
   const toggleExpand = () => {
     if (!browserChatExpand && rightPanelCollapsed) revealRightPanel()
@@ -385,7 +388,7 @@ export function BrowserPanel() {
 
   // Esc closes the small menus of the toolbar.
   useEffect(() => {
-    if (!viewportMenuOpen && !sendMenuOpen) return
+    if (!workspaceActive || (!viewportMenuOpen && !sendMenuOpen)) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
       setViewportMenuOpen(false)
@@ -393,7 +396,7 @@ export function BrowserPanel() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [viewportMenuOpen, sendMenuOpen])
+  }, [viewportMenuOpen, sendMenuOpen, workspaceActive])
 
   return (
     <div ref={rootRef} className="flex h-full min-h-0 flex-col" onKeyDown={onRootKeyDown}>

@@ -1,0 +1,222 @@
+/* Import last, outside @layer. Body portals intentionally do not depend on
+   .reference-code ancestry. No typography, editable-input or terminal changes. */
+:is(.chat-message-scroll, .chat-model-popover, .composer-popover,
+    .timeline-scroll-viewport, .code-location-dialog, .files-preview-scroll-host,
+    .prose-chat, .tool-call-body, .code-surface, .scrollbar-overlay, .overlay-scroll-host):not(:where(.xterm, .xterm *, .terminal-drawer, .terminal-drawer *)) {
+  --scrollbar-thumb-width: 4px;
+  --scrollbar-rail-hit: 10px;
+}
+
+/* Native scroll panes, including model menus portaled directly into body.
+   Do not unhide OverlayScrollHost's native bars: it supplies a draggable rail.
+   Standard thin mode serves Firefox; WebKit rules are the older Electron fallback.
+   Nested CSS is supported by both target engines and keeps exclusions identical. */
+:is(.chat-message-scroll, .chat-model-list, .reference-model-scroll, .composer-popover,
+    .timeline-scroll-viewport, .code-location-dialog-body,
+    .remote-folder-list, .local-folder-list, .remote-folder-breadcrumb,
+    .local-folder-breadcrumb, .scrollbar-overlay,
+    .composer-popover .overflow-y-auto,
+    .prose-chat .overflow-auto, .prose-chat .overflow-x-auto,
+    .tool-call-body .overflow-auto, .tool-call-body .overflow-y-auto,
+    .code-surface .overflow-auto, .chat-message-prose pre,
+    .chat-message-prose table, .prose-chat pre, .tool-call-body pre):not(:where(.overlay-scroll-pane, .overlay-scroll-pane-x,
+    .xterm, .xterm *, .terminal-drawer, .terminal-drawer *,
+    input, textarea, select, [contenteditable], [contenteditable] *)) {
+  --compact-scroll-thumb: color-mix(in srgb, var(--scrollbar-thumb, #80808066) 70%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--compact-scroll-thumb) transparent;
+
+  &:is(:hover, :focus-visible, :focus-within) {
+    scrollbar-color: var(--scrollbar-thumb-hover, #80808088) transparent;
+  }
+  /* Chromium's standard `thin` is wider than 4px and non-auto standard
+     properties suppress WebKit painting. Firefox keeps the thin rules above. */
+  @supports selector(::-webkit-scrollbar) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+    &:is(:hover, :focus-visible, :focus-within) {
+      scrollbar-color: auto;
+    }
+  }
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track,
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: var(--compact-scroll-thumb);
+    border-radius: 999px;
+  }
+  &:is(:hover, :focus-visible, :focus-within)::-webkit-scrollbar-thumb,
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover, #80808088);
+  }
+}
+
+/* Keep original rail events and a transparent 10px hit target. Focus reveals a
+   scrollable thumb without exposing a phantom full rail on short content. */
+.overlay-scroll-host:not(:where(.xterm, .xterm *, .terminal-drawer, .terminal-drawer *)) {
+  & :is(.overlay-scrollbar-rail, .overlay-scrollbar-rail-h) {
+    background: transparent;
+  }
+  & .overlay-scrollbar-rail__thumb {
+    width: 4px;
+    background-color: var(--scrollbar-thumb);
+  }
+  & .overlay-scrollbar-rail-h__thumb {
+    background-color: var(--scrollbar-thumb);
+  }
+  &:is(:hover, :focus-within) :is(.overlay-scrollbar-rail__thumb, .overlay-scrollbar-rail-h__thumb) {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+  &:focus-within .overlay-scrollbar-rail__thumb:not([style*="height: 100%"], [style*="height:100%"]),
+  &:focus-within .overlay-scrollbar-rail-h__thumb:not(.overlay-scrollbar-rail-h__thumb--hint, [style*="width: 100%"], [style*="width:100%"]),
+  & .overlay-scrollbar-rail__thumb:hover,
+  & .overlay-scrollbar-rail-h__thumb:not(.overlay-scrollbar-rail-h__thumb--hint):hover {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Actual model text, not generic buttons or controls. Override Code's truncate
+   utility without discarding full IDs; do not restyle native search inputs/IME. */
+.chat-model-popover .chat-model-option > span,
+.chat-model-popover :is(.chat-model-name, .chat-model-id, .chat-model-provider),
+.composer-popover .picker-row .truncate,
+.composer-popover .model-picker-provider-header > .truncate {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.composer-popover .picker-row > .min-w-0 > .flex {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.chat-model-popover .chat-model-option > span {
+  flex: 1 1 0%;
+}
+.composer-popover > .border-b > .flex,
+.chat-model-popover .chat-model-search {
+  min-width: 0;
+  max-width: 100%;
+}
+.composer-popover:has(.model-picker-provider) {
+  max-width: calc(100vw - 16px);
+}
+
+/* Layout containment, never overflow:hidden to pretend text has wrapped.
+   Preserve the transcript's 960px cap and user-bubble width proportions. */
+.timeline-scroll-viewport :is(.chat-content-column, .timeline-user-bubble) {
+  min-width: 0;
+}
+:is(.chat-message-scroll, .timeline-scroll-viewport) :is(.chat-message,
+    .chat-message-prose, .timeline-text-body,
+    .prose-chat, .tool-call-body, .code-surface) {
+  min-width: 0;
+  max-width: 100%;
+}
+:is(.chat-message-prose, .prose-chat, .tool-call-body) :is(p, li, a, blockquote, th, td, .whitespace-pre-wrap):not(:where(.xterm *, .terminal-drawer *, [contenteditable], [contenteditable] *)) {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+:is(.chat-message-prose, .prose-chat, .tool-call-body, .code-surface) :is(pre, code, .native-code-shiki, .native-code-shiki .line):not(:where(.xterm *, .terminal-drawer *, [contenteditable], [contenteditable] *)) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+/* Outrank .native-code-shiki pre/code while leaving token spans, fonts, tabs and
+   code-copy handlers untouched. overflow:auto remains a genuine-media safety net. */
+.code-surface .native-code-shiki :is(pre, code):not(:where(.xterm *, .terminal-drawer *, [contenteditable], [contenteditable] *)) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+:is(.chat-message-prose, .prose-chat, .tool-call-body) table:not(:where(.xterm *, .terminal-drawer *, [contenteditable], [contenteditable] *)) {
+  display: table;
+  width: 100%;
+  max-width: 100%;
+  table-layout: fixed;
+}
+:is(.chat-message-prose, .prose-chat, .tool-call-body) :is(th, td):not(:where(.xterm *, .terminal-drawer *, [contenteditable], [contenteditable] *)) {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Search results: shrink-0 filename + truncated body previously forced wide
+   output. Keep the separate line-number span and all text. */
+.tool-call-body .overflow-auto > .flex:has(> .truncate) {
+  flex-wrap: wrap;
+}
+.tool-call-body .overflow-auto > .flex:has(> .truncate) > span:first-child,
+.tool-call-body .truncate:not(:where(.xterm *, .terminal-drawer *, button *, [contenteditable], [contenteditable] *)) {
+  min-width: 0;
+  max-width: 100%;
+  flex-shrink: 1;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* Local and remote directory lists. Only breadcrumb labels/folder names wrap;
+   action-button geometry and keyboard/focus behavior remain intact. */
+.code-location-dialog :is(.remote-folder-list, .local-folder-list) > button > span,
+.code-location-dialog :is(.remote-folder-breadcrumb, .local-folder-breadcrumb) :is(span, button),
+.code-location-dialog :is(.local-folder-recents, .local-folder-shortcuts) > button,
+.code-location-dialog :is(.code-location-help, .code-location-test-result, .trust-workspace-host, code) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.code-location-dialog :is(.remote-folder-breadcrumb, .local-folder-breadcrumb) {
+  flex-wrap: wrap;
+}
+.code-location-dialog :is(.remote-folder-breadcrumb, .local-folder-breadcrumb) > span {
+  flex-shrink: 1;
+}
+
+/* Unnumbered large-source fallback can wrap safely. Numbered previews have a
+   separate fixed-height gutter: do NOT desynchronise add-line/source semantics.
+   That DOM needs shared per-line rows before it can support soft wrapping. */
+.files-preview-scroll-host .overlay-scroll-pane > .inline-block:has(> .flex:not(:has(> [aria-hidden]))) {
+  display: block;
+  min-width: 0;
+  width: 100%;
+}
+.files-preview-scroll-host .overlay-scroll-pane > .inline-block > .flex:not(:has(> [aria-hidden])) {
+  min-width: 0;
+  width: 100%;
+}
+.files-preview-scroll-host .overlay-scroll-pane > .inline-block > .flex:not(:has(> [aria-hidden])) > .min-w-0 {
+  flex: 1 1 0%;
+}
+.files-preview-scroll-host .overlay-scroll-pane > .inline-block > .flex:not(:has(> [aria-hidden])) pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+@media (forced-colors: active) {
+  :is(.chat-message-scroll, .chat-model-popover, .composer-popover,
+      .timeline-scroll-viewport, .code-location-dialog, .files-preview-scroll-host,
+      .prose-chat, .tool-call-body, .code-surface, .scrollbar-overlay, .overlay-scroll-host):not(:where(.xterm, .xterm *, .terminal-drawer, .terminal-drawer *)) {
+    --scrollbar-thumb: ButtonText;
+    --scrollbar-thumb-hover: Highlight;
+    --compact-scroll-thumb: ButtonText;
+  }
+}

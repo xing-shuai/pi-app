@@ -1,5 +1,8 @@
 import { toast } from 'sonner'
-import { onExtensionUIRequest, onExtensionUIDismiss } from '@renderer/lib/ipc-client'
+import { extensionDialogIds as seenDialogIds } from './extension-ui-dialog-dedupe'
+export { clearExtensionDialogDedupe } from './extension-ui-dialog-dedupe'
+import { extensionInputPresentation, skipAgentNameOnboarding } from '@shared/extension-input'
+import { ipcClient, onExtensionUIRequest, onExtensionUIDismiss } from '@renderer/lib/ipc-client'
 import { useExtensionUIStore, type ExtensionUIPending } from '@renderer/stores/extension-ui-store'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -16,7 +19,6 @@ import {
 } from '@renderer/lib/extension-ui-tool-sync'
 
 let started = false
-const seenDialogIds = new Set<string>()
 const INTERACTIVE_TOOL_NAMES = new Set(['ask_user_question', 'image_review'])
 
 function pruneSeenIds(): void {
@@ -77,15 +79,11 @@ function rawToPending(raw: Record<string, unknown>): ExtensionUIPending | null {
       id,
       method: 'input',
       title: raw.title as string,
-      placeholder: raw.placeholder as string | undefined,
+      ...extensionInputPresentation(raw.placeholder, raw.defaultValue),
       sessionFile,
     }
   }
   return null
-}
-
-export function clearExtensionDialogDedupe(): void {
-  seenDialogIds.clear()
 }
 
 /** Worker 侧对话框超时/中止或 compaction 开始时，清理 Renderer 悬挂状态 */
@@ -123,6 +121,12 @@ export function ensureExtensionUIChannel(): void {
   onExtensionUIRequest((raw) => {
     const req = raw as Record<string, unknown>
     const method = req.method as string
+    if (method === 'input' && typeof req.id === 'string' && skipAgentNameOnboarding(req.title, req.placeholder)) {
+      // Remote CLI extensions use the same legacy setup request. Decline onboarding,
+      // not a permission decision, and keep the reply pinned by its issued request ID.
+      void ipcClient.invoke('extension.respondUI', { id: req.id, sessionFile: sessionFileFromRaw(req), cancelled: true }).catch(() => {})
+      return
+    }
 
     if (method === 'notify') {
       const t = (req.notifyType as string) || 'info'

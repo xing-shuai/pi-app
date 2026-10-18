@@ -4,6 +4,7 @@ import * as Turn from './handlers/worker-handlers-turn.js'
 import * as Session from './handlers/worker-handlers-session.js'
 import * as Catalog from './handlers/worker-handlers-catalog.js'
 import * as PiSettings from './handlers/worker-handlers-pi-settings.js'
+import { handleGetProviderUsage } from './handlers/worker-handlers-provider-usage.js'
 import { handleSetCapabilities } from './worker-capabilities.js'
 import { handleReloadModelRouters } from './worker-model-routers.js'
 import { handleBrowserToolResponse } from './worker-browser-tools.js'
@@ -39,6 +40,7 @@ const dispatch: Record<string, (msg: WorkerIncomingMessage, reply: WorkerReply) 
   'getMessages': Session.handleGetmessages,
   'reloadModels': Catalog.handleReloadmodels,
   'getModels': Catalog.handleGetmodels,
+  'getProviderUsage': handleGetProviderUsage,
   'getClassifierModels': Catalog.handleGetclassifiermodels,
   'getModelSettingsSnapshot': Catalog.handleGetmodelsettingssnapshot,
   'getCommands': Catalog.handleGetcommands,

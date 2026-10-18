@@ -111,8 +111,13 @@ export function UsageSettingsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="usage-settings-panel flex flex-col gap-5">
       <SettingsPageHeader title={t('settings:usage.title')} description={t('settings:usage.description')} />
+      <section className="reference-usage-availability" aria-label="Provider usage limits">
+        <h3>Provider usage limits <span>Unavailable</span></h3>
+        <dl><div><dt>Current session limit</dt><dd>Unavailable</dd></div><div><dt>Weekly limit</dt><dd>Unavailable</dd></div></dl>
+        <p>Provider plans, quotas, billing credits and reset times are not exposed to Pi Desktop. The statistics below are recorded session usage, not subscription limits.</p>
+      </section>
       <div role="radiogroup" aria-label={t('settings:usage.range')} className="settings-segmented flex h-[30px] w-fit gap-0.5 rounded-md p-0.5">
         {ranges.map((o) => (
           <button key={o.v} type="button" role="radio" aria-checked={range === o.v} onClick={() => setRange(o.v)} className="settings-segmented-item rounded-[5px] px-3 text-[12px]">

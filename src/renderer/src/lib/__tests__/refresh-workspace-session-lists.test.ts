@@ -86,6 +86,19 @@ describe('refreshWorkspaceSessionLists', () => {
     expect(ipcClient.invoke).toHaveBeenCalledTimes(1)
   })
 
+  it('refreshes after an older empty request when a new session was created, coalescing mutation refreshes', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    vi.mocked(ipcClient.invoke).mockImplementationOnce(async () => { await gate; return { sessions: [] } }).mockResolvedValue({ sessions: [{ sessionId: 'new', title: 'Created during model discovery', updatedAt: 1 }] })
+    const old = refreshWorkspaceSessionLists()
+    const changed = refreshWorkspaceSessionLists({ afterMutation: true })
+    const alsoChanged = refreshWorkspaceSessionLists({ afterMutation: true })
+    release()
+    await Promise.all([old, changed, alsoChanged])
+    expect(ipcClient.invoke).toHaveBeenCalledTimes(2)
+    expect(useUIStore.getState().sessions[0]?.sessionId).toBe('new')
+  })
+
   it('publishes workspace-sessions results without emitting sessions-changed', async () => {
     const workspaceSessionsHandler = vi.fn()
     const sessionsChangedHandler = vi.fn()

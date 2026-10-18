@@ -36,7 +36,7 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
   const streamRef = useRef({ id: null as string | null, start: 0, lastLen: 0, lastAt: 0 })
 
   useEffect(() => {
-    if (!metricsEnabled || !workspace || !model) {
+    if (!metricsEnabled || !workspace || !model || workspace.startsWith('/__pi_ssh__/')) {
       setContextWindow(null)
       return
     }
@@ -84,10 +84,13 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
     }
   }, [metricsEnabled, streamingId, streamLen, isRunning])
 
-  const estimatedContextTokens = contextPreview ? estTokensFromChars(contextPreview.estimatedChars) : null
+  const remote = workspace?.startsWith('/__pi_ssh__/')
+  const remoteFacts = remote && rawContextPreview?.remoteContext && rawContextPreview.remoteContext.model === model ? rawContextPreview.remoteContext : undefined
+  const effectiveContextWindow = remote ? remoteFacts?.contextUsage?.contextWindow ?? null : contextWindow
+  const estimatedContextTokens = remote ? remoteFacts?.contextUsage?.tokens ?? null : contextPreview ? estTokensFromChars(contextPreview.estimatedChars) : null
   const contextPercent =
-    estimatedContextTokens != null && contextWindow != null && contextWindow > 0
-      ? Math.min(100, (estimatedContextTokens / contextWindow) * 100)
+    estimatedContextTokens != null && effectiveContextWindow != null && effectiveContextWindow > 0
+      ? Math.min(100, (estimatedContextTokens / effectiveContextWindow) * 100)
       : null
 
   const cacheHitPercent = (() => {
@@ -100,7 +103,7 @@ export function useComposerMetrics(options?: { enabled?: boolean }) {
   return {
     contextPreview,
     estContextTokens: estimatedContextTokens,
-    contextWindow,
+    contextWindow: effectiveContextWindow,
     ctxPct: contextPercent,
     cacheHitPct: cacheHitPercent,
     cacheWrite: usage?.cacheWrite ?? 0,

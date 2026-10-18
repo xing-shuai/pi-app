@@ -1,0 +1,184 @@
+/* Secondary product surfaces only. Design pixels intentionally follow the 16px
+   homepage UI before the user's zoom/density is applied. Never scale the shell,
+   reference navigation, Chat greeting/composer, Code workspace or icon geometry. */
+.reference-shell .settings-layout,
+.reference-shell .routines-product,
+.reference-shell .ssh-workspace,
+body:has(.reference-shell .product-settings-workspace) > .overlay-backdrop .overlay-panel {
+  --product-type-body: 16px;
+  --product-type-label: 16px;
+  --product-type-secondary: 14px;
+  --product-type-micro: 12px;
+  --product-type-title: 24px;
+  --product-type-section: 18px;
+  --product-type-code: 14px;
+  --product-leading-ui: 1.5;
+  --product-leading-copy: 1.6;
+  font-family: var(--font-sans);
+  font-size: var(--product-type-body);
+  line-height: var(--product-leading-ui);
+}
+
+/* Settings' inherited utility scale is 10/11/12/13px, not Tailwind's default.
+   Compatibility stays inside Settings (including its body-portaled dialogs).
+   Match exact utility tokens, not class substrings or every p/span/button. */
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(.text-2xs, .text-\[10px\], .text-\[10\.5px\]) {
+  font-size: var(--product-type-micro);
+  line-height: var(--product-leading-ui);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(.text-xs, .font-xs, .text-\[11px\], .text-\[11\.5px\], .text-\[12px\], .text-\[12\.5px\], .text-\[14px\]) {
+  font-size: var(--product-type-secondary);
+  line-height: var(--product-leading-copy);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(.text-sm, .font-sm, .text-base, .text-\[13px\], .text-\[13\.5px\], .text-\[15px\], .text-\[16px\]) {
+  font-size: var(--product-type-body);
+  line-height: var(--product-leading-ui);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(.text-lg, .text-xl, .text-\[18px\], h3, .settings-section-title) {
+  font-size: var(--product-type-section);
+  line-height: var(--product-leading-ui);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(.text-2xl, .text-\[20px\], .settings-page-title) {
+  font-size: var(--product-type-title);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .settings-layout :is(.settings-nav-item, .settings-row-label, .workbench-button, .workbench-row-title, .workbench-empty) {
+  font-size: var(--product-type-label);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .settings-layout :is(.settings-nav-caption, .settings-page-description, .settings-section-description, .settings-row-description, .workbench-row-detail, .workbench-empty > span, .workbench-error) {
+  font-size: var(--product-type-secondary);
+  line-height: var(--product-leading-copy);
+}
+
+/* Form labels and actions are UI, not code. Keep explicit monospace opt-ins for
+   paths/IDs and bound code editors/logs separately below. This also covers the
+   save bar, search, validation messages and legacy panel-specific controls. */
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']), select, textarea, .settings-chip, .settings-segmented-item, label:not(.font-mono)) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-label);
+  line-height: var(--product-leading-ui);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(pre, code, kbd, samp, .font-mono) {
+  font-family: var(--font-mono);
+  font-size: var(--product-type-code);
+  line-height: var(--product-leading-copy);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(input.font-mono, select.font-mono) {
+  font-family: var(--font-mono);
+  font-size: var(--product-type-label);
+  line-height: var(--product-leading-ui);
+}
+
+:is(.reference-shell .settings-layout, :where(body:has(.reference-shell .product-settings-workspace)) > .overlay-backdrop .overlay-panel)
+:where(textarea.font-mono, .settings-button-compact) {
+  font-size: var(--product-type-secondary);
+  line-height: var(--product-leading-copy);
+}
+
+.reference-shell .settings-layout :is(.settings-key, .settings-badge, .settings-added-badge, .model-binding-provider) {
+  font-size: var(--product-type-micro);
+  line-height: var(--product-leading-ui);
+}
+
+/* Routines: shared sidebar navigation/footer are deliberately not selected. */
+.reference-shell .routines-product :is(.routine-welcome h1, .routine-editor h1, .routine-detail h1) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-title);
+  line-height: var(--product-leading-ui);
+  letter-spacing: normal;
+}
+
+.reference-shell .routines-product .routine-history-title {
+  font-size: var(--product-type-section);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .routines-product :is(.routine-sidebar-list > button, .product-content-header strong, .product-primary, .product-modal-actions button, .routine-example-grid > button, .routine-editor label, .routine-checkbox, .routine-editor input:not([type='checkbox']), .routine-editor select, .routine-editor textarea, .routine-detail-actions button, .routine-summary-grid strong, .routine-instructions, .routine-run-detail > header) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-label);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .routines-product :is(.routine-sidebar-list small, .product-content-header small, .routine-welcome > p, .routine-example-grid small, .routine-form-hint, .routine-back, .routine-editor .routine-permission-warning, .routine-detail-heading p, .routine-summary-grid small, .routine-run-row > span:not(.routine-run-status), .routine-run-row small, .routine-run-detail > header button, .routine-run-detail details, .routine-empty-history, .product-error) {
+  font-size: var(--product-type-secondary);
+  line-height: var(--product-leading-copy);
+}
+
+.reference-shell .routines-product :is(.product-status, .routine-surface-badge, .routine-run-status) {
+  font-size: var(--product-type-micro);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .routines-product :is(.routine-working-folder, .routine-instructions pre, .routine-run-detail > pre, .routine-run-detail code) {
+  font-family: var(--font-mono);
+  font-size: var(--product-type-code);
+  line-height: var(--product-leading-copy);
+}
+
+/* SSH: explicit selectors beat lazy-loaded legacy CSS without !important.
+   Password dialog is a descendant of ssh-workspace, not a global auth style. */
+.reference-shell .ssh-workspace :is(.ssh-brand, .ssh-setup h1, .ssh-chat-empty h1, .ssh-profile-form h2) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-title);
+  line-height: var(--product-leading-ui);
+  letter-spacing: normal;
+}
+
+.reference-shell .ssh-workspace :is(.ssh-connect-card h2, .ssh-password-dialog h2) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-section);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .ssh-workspace :is(.ssh-back, .ssh-connection, .ssh-header strong, .ssh-primary, .ssh-actions button, .ssh-password-switch, .ssh-form-grid label, .ssh-auth-method, input, select, textarea, .ssh-suggestions button, .ssh-inspector-tabs button, .ssh-file-list button, .ssh-password-dialog > label, .ssh-password-dialog > p:not(.ssh-password-privacy)) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-label);
+  line-height: var(--product-leading-ui);
+}
+
+.reference-shell .ssh-workspace :is(.ssh-brand small, .ssh-section-title, .ssh-connection small, .ssh-security, .ssh-header small, .ssh-setup > p, .ssh-chat-empty p, .ssh-help, .ssh-error, .ssh-hint, .ssh-auth-summary, .ssh-tool, .ssh-composer > small, .ssh-file-toolbar, .ssh-file-preview strong, .ssh-diagnostics, .ssh-password-dialog .ssh-password-privacy) {
+  font-size: var(--product-type-secondary);
+  line-height: var(--product-leading-copy);
+}
+
+.reference-shell .ssh-workspace :is(.ssh-status, .ssh-prototype-badge, .ssh-message > small) {
+  font-family: var(--font-sans);
+  font-size: var(--product-type-micro);
+  line-height: var(--product-leading-ui);
+}
+
+/* Preserve deliberate assistant prose. Fixed code sizes avoid the old .85em
+   shrinking code a second time inside a small pre/console. No glyph selectors. */
+.reference-shell .ssh-workspace .ssh-message.assistant {
+  font-size: var(--product-type-body);
+  line-height: var(--product-leading-copy);
+}
+
+.reference-shell .ssh-workspace :is(pre, code, .ssh-tool pre, .ssh-file-preview pre, .ssh-console-output, .ssh-diagnostics pre, .ssh-message.assistant pre, .ssh-message.assistant code, .ssh-password-dialog > code) {
+  font-family: var(--font-mono);
+  font-size: var(--product-type-code);
+  line-height: var(--product-leading-copy);
+}
+
+.reference-shell .ssh-workspace .ssh-inspector > textarea[aria-label='Remote command'] {
+  font-family: var(--font-mono);
+  font-size: var(--product-type-code);
+  line-height: var(--product-leading-copy);
+}

@@ -1,4 +1,5 @@
 import Store from 'electron-store'
+import { REFERENCE_DESKTOP_THEME } from '@shared/reference-desktop-theme'
 import type { AsrConfig } from '@shared/asr-types'
 import type { BackgroundSettings } from '@shared/background'
 import type { CustomCssOverride, CustomTheme } from '@shared/custom-theme'
@@ -9,6 +10,8 @@ import { nextRecentProjects } from './recent-projects'
 import { defaultAppLanguage } from './default-language'
 
 export interface StoreSchema {
+  sshProfiles: import('@shared/ssh-workspace').SshProfile[]
+  sshSessions: Record<string, string>
   recentProjects: string[]
   /** 侧栏项目列表固定顺序（不随打开而置顶）；false = 最近使用排序（默认） */
   recentProjectsFixedOrder: boolean
@@ -97,13 +100,15 @@ export interface StoreSchema {
 const store = new Store<StoreSchema>({
   name: 'pi-desktop',
   defaults: {
+    sshProfiles: [],
+    sshSessions: {},
     recentProjects: [],
     recentProjectsFixedOrder: false,
     currentProject: null,
     windowBounds: null,
-    theme: 'system',
+    theme: 'dark',
     iconTheme: DEFAULT_ICON_THEME,
-    customTheme: null,
+    customTheme: REFERENCE_DESKTOP_THEME,
     customCssOverride: { enabled: false, css: '' },
     background: { shared: true },
     panelWidths: null,

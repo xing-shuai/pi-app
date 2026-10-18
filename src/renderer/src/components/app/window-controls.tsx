@@ -33,7 +33,8 @@ export function WindowControls({ className }: { className?: string }) {
     <div className={cn('flex h-9 items-stretch', className)}>
       <button
         type="button"
-        title={t('common:window.minimize')}
+        aria-label={t('common:window.minimize')}
+        data-app-tooltip={t('common:window.minimize')}
         onClick={minimize}
         className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-[var(--bg-hover)]"
       >
@@ -41,7 +42,8 @@ export function WindowControls({ className }: { className?: string }) {
       </button>
       <button
         type="button"
-        title={maximized ? t('common:window.restore') : t('common:window.maximize')}
+        aria-label={maximized ? t('common:window.restore') : t('common:window.maximize')}
+        data-app-tooltip={maximized ? t('common:window.restore') : t('common:window.maximize')}
         onClick={toggleMax}
         className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-[var(--bg-hover)]"
       >
@@ -53,7 +55,8 @@ export function WindowControls({ className }: { className?: string }) {
       </button>
       <button
         type="button"
-        title={t('common:window.close')}
+        aria-label={t('common:window.close')}
+        data-app-tooltip={t('common:window.close')}
         onClick={close}
         className="win-ctrl-btn flex w-11 items-center justify-center text-foreground-secondary hover:bg-red-600 hover:text-white"
       >

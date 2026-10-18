@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
+import { useCodeWorkspaceActive } from '@renderer/features/shell/workspace-activity'
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Maximize2, Minus, Search } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
+import { isVirtualWorkspacePath } from '@shared/remote-code'
+import { openCodeFile } from '@renderer/lib/code-file-actions'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 import { OverlayScrollHost } from '@renderer/components/ui/overlay-scrollbar'
@@ -20,6 +23,7 @@ import { RenamePromptDialog } from '@renderer/features/workspace/rename-prompt-d
 type RenameTarget = Pick<FilesCtxTarget, 'abs' | 'name' | 'rel'>
 
 export function WorkspaceFilesPanel() {
+  const workspaceActive = useCodeWorkspaceActive()
   const { t } = useTranslation('files')
   const panelRef = useRef<HTMLDivElement>(null)
   const expandButtonRef = useRef<HTMLButtonElement>(null)
@@ -69,7 +73,7 @@ export function WorkspaceFilesPanel() {
   }, [])
 
   useEffect(() => {
-    if (!filesPreviewChatExpand || rightPanelCollapsed) return
+    if (!workspaceActive || !filesPreviewChatExpand || rightPanelCollapsed) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       if (event.target instanceof Element && event.target.closest('[role="dialog"], [role="menu"]')) return
@@ -79,7 +83,7 @@ export function WorkspaceFilesPanel() {
     }
     window.addEventListener('keydown', onKeyDown, true)
     return () => window.removeEventListener('keydown', onKeyDown, true)
-  }, [filesPreviewChatExpand, rightPanelCollapsed, exitExpandedPreview])
+  }, [filesPreviewChatExpand, rightPanelCollapsed, exitExpandedPreview, workspaceActive])
 
   useEffect(() => {
     return () => {
@@ -95,7 +99,7 @@ export function WorkspaceFilesPanel() {
   useEffect(() => {
     // Refresh preview only when the files panel is the active right-panel tab and visible.
     // Collapsed right panel unmounts this host entirely (see app.tsx); no idle 2s reread.
-    if (!activeTab || activePanel !== 'files') return
+    if (!workspaceActive || !activeTab || activePanel !== 'files') return
     if (rightPanelCollapsed) return
     const tick = () => {
       if (typeof document !== 'undefined' && document.hidden) return
@@ -108,7 +112,7 @@ export function WorkspaceFilesPanel() {
     return () => {
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [activeTab?.rel, activePanel, rightPanelCollapsed])
+  }, [activeTab?.rel, activePanel, rightPanelCollapsed, workspaceActive])
 
   const toggleChatPreviewExpand = useCallback(() => {
     if (!previewPath) return
@@ -358,9 +362,9 @@ export function WorkspaceFilesPanel() {
           setRenameValue(menu.name)
           setRenameOpen(true)
         }}
-        onReveal={() => {
+        onReveal={isVirtualWorkspacePath(workspaceRoot) ? undefined : () => {
           if (!menu) return
-          void ipcClient.invoke('shell.showItemInFolder', { path: menu.abs })
+          void openCodeFile(menu.abs, { workspaceId: workspaceRoot, reveal: true })
         }}
       />
 

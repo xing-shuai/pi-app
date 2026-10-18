@@ -1,10 +1,24 @@
 import { create } from 'zustand'
+import { useUIStore } from '@renderer/stores/ui-store'
+
+export type TerminalWorkspaceId = string | null
+/** Exact UI identity: never normalize virtual SSH namespaces to their native cwd. */
+export const terminalWorkspaceKey = (workspaceId: TerminalWorkspaceId): string => JSON.stringify(workspaceId)
 
 export type ShellProfile = { id: string; name: string; path: string; args: string[]; kind: string; piDefault?: boolean }
 /** One pty, shown in a pane. `exited` keeps the pane (with its output) until the user closes it. */
-export type TerminalPaneState = { ptyId: string; profile: ShellProfile; exited?: number }
+export type TerminalPaneState = { ptyId: string; profile: ShellProfile; workspaceId?: TerminalWorkspaceId; exited?: number }
 /** `sizes`: each pane's share of the tab width (sums to 1). */
-export type TerminalTab = { id: string; panes: TerminalPaneState[]; activePane: number; sizes: number[] }
+export type TerminalTab = { id: string; workspaceId?: TerminalWorkspaceId; panes: TerminalPaneState[]; activePane: number; sizes: number[] }
+
+/** Missing identities are legacy local-null ONLY, not a wildcard for any local or SSH workspace. */
+export function terminalTabsForWorkspace(tabs: TerminalTab[], workspaceId: TerminalWorkspaceId): TerminalTab[] {
+  return tabs.filter((tab) => (tab.workspaceId ?? null) === workspaceId && tab.panes.every((pane) => (pane.workspaceId ?? null) === workspaceId))
+}
+
+export function terminalProfilesForWorkspace(profiles: Record<string, ShellProfile[]>, workspaceId: TerminalWorkspaceId): ShellProfile[] | null {
+  return profiles[terminalWorkspaceKey(workspaceId)] ?? null
+}
 
 export const MAX_PANES = 4
 /** Narrowest a pane can be dragged, as a share of the tab width. */
@@ -32,19 +46,30 @@ function readHeight(): number {
 
 type State = {
   open: boolean
+  inputEnabled: boolean
   height: number
   tabs: TerminalTab[]
   activeTab: string | null
+  /** Active identity and compatibility views, synchronized with UIStore even while the drawer is unmounted. */
+  workspaceId: TerminalWorkspaceId
+  activeTabByWorkspace: Record<string, string>
   profiles: ShellProfile[] | null
+  profilesByWorkspace: Record<string, ShellProfile[]>
 }
 
-export const useTerminalStore = create<State>(() => ({ open: false, height: readHeight(), tabs: [], activeTab: null, profiles: null }))
+export const useTerminalStore = create<State>(() => ({
+  open: false, inputEnabled: true, height: readHeight(), tabs: [], activeTab: null,
+  workspaceId: useUIStore.getState().currentWorkspace, activeTabByWorkspace: {}, profiles: null, profilesByWorkspace: {},
+}))
 
 let tabSeq = 0
 const set = useTerminalStore.setState
 const get = useTerminalStore.getState
 
 export const terminalActions = {
+  setInputEnabled(inputEnabled: boolean) {
+    set({ inputEnabled })
+  },
   setOpen(open: boolean) {
     set({ open })
   },
@@ -60,18 +85,40 @@ export const terminalActions = {
       /* per-viewer convenience only */
     }
   },
-  setProfiles(profiles: ShellProfile[]) {
-    set({ profiles })
+  activateWorkspace(workspaceId: TerminalWorkspaceId) {
+    set((s) => {
+      const tabs = terminalTabsForWorkspace(s.tabs, workspaceId)
+      const saved = s.activeTabByWorkspace[terminalWorkspaceKey(workspaceId)]
+      return {
+        workspaceId,
+        activeTab: tabs.find((t) => t.id === saved)?.id ?? tabs[tabs.length - 1]?.id ?? null,
+        profiles: terminalProfilesForWorkspace(s.profilesByWorkspace, workspaceId),
+      }
+    })
+  },
+  setProfiles(profiles: ShellProfile[], workspaceId: TerminalWorkspaceId = get().workspaceId) {
+    set((s) => ({
+      profilesByWorkspace: { ...s.profilesByWorkspace, [terminalWorkspaceKey(workspaceId)]: profiles },
+      ...(s.workspaceId === workspaceId ? { profiles } : {}),
+    }))
   },
   addTab(pane: TerminalPaneState): string {
     const id = `tab${++tabSeq}`
-    set((s) => ({ tabs: [...s.tabs, { id, panes: [pane], activePane: 0, sizes: [1] }], activeTab: id, open: true }))
+    const workspaceId = pane.workspaceId ?? null
+    set((s) => ({
+      tabs: [...s.tabs, { id, workspaceId, panes: [{ ...pane, workspaceId }], activePane: 0, sizes: [1] }],
+      ...(s.inputEnabled && s.workspaceId === workspaceId ? {
+        activeTab: id, open: true,
+        activeTabByWorkspace: { ...s.activeTabByWorkspace, [terminalWorkspaceKey(workspaceId)]: id },
+      } : {}),
+    }))
     return id
   },
   /** A new pane right of the focused one (up to MAX_PANES); widths reset to equal. Returns false when full. */
   splitTab(tabId: string, pane: TerminalPaneState): boolean {
-    const tab = get().tabs.find((t) => t.id === tabId)
-    if (!tab || tab.panes.length >= MAX_PANES) return false
+    const s = get()
+    const tab = terminalTabsForWorkspace(s.tabs, s.workspaceId).find((t) => t.id === tabId)
+    if (!s.inputEnabled || !tab || (pane.workspaceId ?? null) !== s.workspaceId || tab.panes.length >= MAX_PANES) return false
     const at = tab.activePane + 1
     const panes = [...tab.panes.slice(0, at), pane, ...tab.panes.slice(at)]
     set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, panes, activePane: at, sizes: equal(panes.length) } : t)) }))
@@ -79,6 +126,8 @@ export const terminalActions = {
   },
   /** Drag the border right of pane `index` by `delta` (share of the tab width). */
   resizeSplit(tabId: string, index: number, delta: number) {
+    const state = get()
+    if (!state.inputEnabled || !terminalTabsForWorkspace(state.tabs, state.workspaceId).some((tab) => tab.id === tabId)) return
     set((s) => ({
       tabs: s.tabs.map((t) => {
         if (t.id !== tabId || index < 0 || index >= t.panes.length - 1) return t
@@ -92,14 +141,22 @@ export const terminalActions = {
     }))
   },
   /** An exited pane gets a fresh pty in the same slot. */
-  replacePane(oldPtyId: string, pane: TerminalPaneState) {
+  replacePane(oldPtyId: string, pane: TerminalPaneState): boolean {
+    const workspaceId = pane.workspaceId ?? null
+    if (!terminalTabsForWorkspace(get().tabs, workspaceId).some((t) => t.panes.some((p) => p.ptyId === oldPtyId))) return false
     set((s) => ({ tabs: s.tabs.map((t) => ({ ...t, panes: t.panes.map((p) => (p.ptyId === oldPtyId ? pane : p)) })) }))
+    return true
   },
   focusTab(tabId: string) {
-    set({ activeTab: tabId })
+    const s = get()
+    if (!terminalTabsForWorkspace(s.tabs, s.workspaceId).some((t) => t.id === tabId)) return
+    set({ activeTab: tabId, activeTabByWorkspace: { ...s.activeTabByWorkspace, [terminalWorkspaceKey(s.workspaceId)]: tabId } })
   },
   focusPane(tabId: string, index: number) {
-    set((s) => ({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, activePane: index } : t)) }))
+    const s = get()
+    const tab = terminalTabsForWorkspace(s.tabs, s.workspaceId).find((t) => t.id === tabId)
+    if (!tab || !tab.panes[index]) return
+    set({ tabs: s.tabs.map((t) => (t.id === tabId ? { ...t, activePane: index } : t)) })
   },
   markExited(ptyId: string, code: number) {
     set((s) => ({ tabs: s.tabs.map((t) => ({ ...t, panes: t.panes.map((p) => (p.ptyId === ptyId ? { ...p, exited: code } : p)) })) }))
@@ -122,8 +179,12 @@ export const terminalActions = {
           return { ...t, panes, sizes, activePane }
         })
         .filter((t) => t.panes.length > 0)
-      const activeTab = tabs.some((t) => t.id === s.activeTab) ? s.activeTab : (tabs[tabs.length - 1]?.id ?? null)
-      return { tabs, activeTab, open: tabs.length ? s.open : false }
+      const scoped = terminalTabsForWorkspace(tabs, s.workspaceId)
+      const activeTab = scoped.some((t) => t.id === s.activeTab) ? s.activeTab : (scoped[scoped.length - 1]?.id ?? null)
+      return {
+        tabs, activeTab, open: tabs.length ? s.open : false,
+        activeTabByWorkspace: { ...s.activeTabByWorkspace, [terminalWorkspaceKey(s.workspaceId)]: activeTab ?? '' },
+      }
     })
   },
   closeTab(tabId: string): string[] {
@@ -133,3 +194,8 @@ export const terminalActions = {
     return tab.panes.map((p) => p.ptyId)
   },
 }
+
+// Synchronous boundary: pending creates and xterm input cannot race a React effect after a host switch.
+useUIStore.subscribe((state, prev) => {
+  if (state.currentWorkspace !== prev.currentWorkspace) terminalActions.activateWorkspace(state.currentWorkspace)
+})

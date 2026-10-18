@@ -193,11 +193,11 @@ export function ProjectSessionTree({
                 {s.title || s.sessionId.slice(0, 8)}
               </div>
               {isChild ? null : s.firstMessage && s.firstMessage !== s.title && !s.firstMessage.startsWith(s.title) ? (
-                <div className="mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary">
+                <div className="sidebar-session-detail mt-0.5 truncate text-[12px] leading-[18px] text-foreground-secondary">
                   {s.firstMessage}
                 </div>
               ) : (
-                <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
+                <div className="sidebar-session-detail text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
                   {new Date(s.updatedAt).toLocaleString(undefined, {
                     month: 'short',
                     day: 'numeric',
@@ -329,7 +329,7 @@ export function ProjectSessionTree({
             <div className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 py-1.5">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] leading-[18px] text-foreground">{t('common:sidebar.newSessionDraft')}</div>
-                <div className="truncate text-[11px] leading-[16px] text-foreground-secondary/85">{t('common:sidebar.firstMsgIsTitle')}</div>
+                <div className="sidebar-session-detail truncate text-[11px] leading-[16px] text-foreground-secondary/85">{t('common:sidebar.firstMsgIsTitle')}</div>
               </div>
             </div>
           </div>
@@ -396,7 +396,7 @@ export function ProjectDiskRow({
         >
           <span className="min-w-0 flex-1">
             <span className={cn('block truncate text-[13px] leading-5', active ? 'font-semibold text-foreground' : 'font-medium text-foreground-secondary')}>{name}</span>
-            {branch && branch !== name ? <span className="block truncate text-[11px] text-foreground-secondary" title={branch}>{branch.replace(/^refs\/heads\//, '')}</span> : null}
+            {branch && branch !== name ? <span className="sidebar-project-branch block truncate text-[11px] text-foreground-secondary" title={branch}>{branch.replace(/^refs\/heads\//, '')}</span> : null}
           </span>
         </button>
         <button
@@ -454,7 +454,7 @@ export function SandboxDialogRow({
         >
           {displayLabel}
         </div>
-        <div className="text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
+        <div className="sidebar-session-detail text-[11px] leading-[16px] tabular-nums text-foreground-secondary/85">
           {new Date(box.createdAt).toLocaleString(undefined, {
             month: 'short',
             day: 'numeric',

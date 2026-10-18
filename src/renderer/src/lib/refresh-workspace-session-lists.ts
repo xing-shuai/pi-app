@@ -13,6 +13,8 @@ export type RefreshWorkspaceSessionListsOptions = {
    * workspace is listed (never every recent project).
    */
   workspaceIds?: string[]
+  /** A mutation happened after an older list request began; its result must not satisfy this refresh. */
+  afterMutation?: boolean
 }
 
 /** In-flight session.list promises, one per workspace (single-flight). */
@@ -74,7 +76,10 @@ export async function refreshWorkspaceSessionLists(
 ): Promise<void> {
   const workspaceIds = resolveWorkspaceIds(options)
   if (workspaceIds.length === 0) return
-  for (const workspaceId of workspaceIds) await loadWorkspaceSessionList(workspaceId)
+  for (const workspaceId of workspaceIds) {
+    if (options?.afterMutation) await inFlightByWorkspace.get(workspacePathKey(workspaceId))
+    await loadWorkspaceSessionList(workspaceId)
+  }
 }
 
 /** Test-only: clear single-flight bookkeeping between cases. */

@@ -1,47 +1,47 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ChevronDown, Columns2, MessageSquarePlus, Plus, Terminal as TerminalIcon, X } from '@renderer/components/icons'
 import { sendToComposer } from '@renderer/features/browser/browser-composer'
 import { cn } from '@renderer/lib/utils'
 import { useUIStore } from '@renderer/stores/ui-store'
-import { loadProfiles, spawnPane } from './terminal-bridge'
+import { canInteractWithPty, killPty, loadProfiles, spawnPane } from './terminal-bridge'
 import { disposeTerminalInstance, onTerminalSelection, TerminalPane, terminalSelection, useClosePane } from './terminal-pane'
-import { MAX_PANES, MIN_TERMINAL_H, tabTitle, terminalActions, useTerminalStore, type ShellProfile, type TerminalTab } from './terminal-store'
+import { MAX_PANES, MIN_TERMINAL_H, tabTitle, terminalActions, terminalProfilesForWorkspace, terminalTabsForWorkspace, terminalWorkspaceKey, useTerminalStore, type ShellProfile, type TerminalTab, type TerminalWorkspaceId } from './terminal-store'
 
 const isToggleKey = (e: KeyboardEvent) => e.ctrlKey && !e.altKey && !e.metaKey && (e.code === 'Backquote' || e.key === '`')
 
 /** Open a new tab with a shell (default: pi's), in the current project. */
 export async function openTerminalTab(profileId?: string): Promise<string | null> {
-  const cwd = useUIStore.getState().currentWorkspace ?? undefined
-  const pane = await spawnPane(profileId, cwd)
+  const workspaceId = useUIStore.getState().currentWorkspace
+  const pane = await spawnPane(profileId, workspaceId)
   if ('error' in pane) {
-    window.dispatchEvent(new CustomEvent('pi-desktop:terminal-error', { detail: pane.error }))
+    window.dispatchEvent(new CustomEvent('pi-desktop:terminal-error', { detail: { workspaceId, error: pane.error } }))
     return null
   }
   return terminalActions.addTab(pane)
 }
 
 /** Ctrl+` anywhere: show / hide the drawer, opening a first shell on the first show. */
-export function useTerminalShortcut(): void {
+export function useTerminalShortcut(enabled = true): void {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!isToggleKey(e)) return
+      if (!enabled || !isToggleKey(e)) return
       e.preventDefault()
       const s = useTerminalStore.getState()
-      if (!s.open && s.tabs.length === 0) void openTerminalTab()
+      if (!s.open && terminalTabsForWorkspace(s.tabs, useUIStore.getState().currentWorkspace).length === 0) void openTerminalTab()
       else terminalActions.toggle()
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [])
+  }, [enabled])
 }
 
-function ProfileMenu({ anchor, onPick, onClose }: { anchor: HTMLElement; onPick: (p: ShellProfile) => void; onClose: () => void }) {
+function ProfileMenu({ anchor, workspaceId, onPick, onClose }: { anchor: HTMLElement; workspaceId: TerminalWorkspaceId; onPick: (p: ShellProfile) => void; onClose: () => void }) {
   const { t } = useTranslation()
-  const profiles = useTerminalStore((s) => s.profiles)
+  const profiles = useTerminalStore((s) => terminalProfilesForWorkspace(s.profilesByWorkspace, workspaceId))
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    void loadProfiles()
+    void loadProfiles(false, workspaceId).catch(() => {})
     const onDown = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node) && !anchor.contains(e.target as Node)) onClose()
     }
@@ -52,7 +52,7 @@ function ProfileMenu({ anchor, onPick, onClose }: { anchor: HTMLElement; onPick:
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [anchor, onClose])
+  }, [anchor, onClose, workspaceId])
   const r = anchor.getBoundingClientRect()
   return (
     <div
@@ -68,7 +68,7 @@ function ProfileMenu({ anchor, onPick, onClose }: { anchor: HTMLElement; onPick:
           className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-muted"
           title={p.path}
           onClick={() => {
-            onPick(p)
+            if (useUIStore.getState().currentWorkspace === workspaceId) onPick(p)
             onClose()
           }}
         >
@@ -123,7 +123,7 @@ function SplitPanes({ tab, active, visible, onClose }: { tab: TerminalTab; activ
   }
 
   return (
-    <div ref={ref} className={cn('absolute inset-0 flex', !active && 'invisible')}>
+    <div ref={ref} className={cn('absolute inset-0 flex', !visible && 'invisible pointer-events-none')} aria-hidden={!visible} {...(!visible ? { inert: '' } : {})}>
       {tab.panes.map((p, i) => (
         <div key={p.ptyId} className="relative flex min-w-0" style={{ flex: `${tab.sizes[i] ?? 1 / tab.panes.length} 1 0` }}>
           {i > 0 ? (
@@ -148,17 +148,30 @@ function SplitPanes({ tab, active, visible, onClose }: { tab: TerminalTab; activ
  * Bottom drawer under the chat and right panel: shell tabs, each with up to two side-by-side
  * panes. Always mounted (terminals keep running and keep their scrollback while it is hidden).
  */
-export function TerminalDrawer() {
+export function TerminalDrawer({ enabled = true }: { enabled?: boolean } = {}) {
   const { t } = useTranslation()
   const { open, height, tabs, activeTab } = useTerminalStore()
+  const workspaceId = useUIStore((s) => s.currentWorkspace)
+  const scopedTabs = enabled ? terminalTabsForWorkspace(tabs, workspaceId) : []
   const closePane = useClosePane()
-  const [menuFor, setMenuFor] = useState<'new' | 'split' | null>(null)
+  const [menu, setMenu] = useState<{ kind: 'new' | 'split'; workspaceId: TerminalWorkspaceId } | null>(null)
+  const menuFor = enabled && menu?.workspaceId === workspaceId ? menu.kind : null
+  const setMenuFor = (kind: 'new' | 'split' | null) => setMenu(kind ? { kind, workspaceId } : null)
   const newRef = useRef<HTMLButtonElement>(null)
   const splitRef = useRef<HTMLButtonElement>(null)
   const [hasSelection, setHasSelection] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const tab = tabs.find((x) => x.id === activeTab) ?? null
+  const [failure, setFailure] = useState<{ workspaceId: TerminalWorkspaceId; error: string } | null>(null)
+  const error = failure?.workspaceId === workspaceId ? failure.error : null
+  const setError = (error: string | null) => setFailure(error ? { workspaceId: useUIStore.getState().currentWorkspace, error } : null)
+  const tab = scopedTabs.find((x) => x.id === activeTab) ?? scopedTabs[scopedTabs.length - 1] ?? null
+  const selectedTabId = tab?.id ?? null
   const activePty = tab?.panes[tab.activePane]?.ptyId
+
+  // Parent passes !executionLocked: null during location selection must not expose legacy local-null PTYs.
+  useLayoutEffect(() => {
+    terminalActions.setInputEnabled(enabled)
+    return () => terminalActions.setInputEnabled(false)
+  }, [enabled])
 
   useEffect(() => {
     setHasSelection(false)
@@ -167,15 +180,19 @@ export function TerminalDrawer() {
 
   // Pane shortcuts (Ctrl+Shift+W, Enter in an exited pane) arrive from inside xterm.
   useEffect(() => {
-    const onClose = (e: Event) => closePane(String((e as CustomEvent).detail))
+    const onClose = (e: Event) => {
+      const id = String((e as CustomEvent).detail)
+      if (canInteractWithPty(id)) closePane(id)
+    }
     const onRestart = async (e: Event) => {
       const old = String((e as CustomEvent).detail)
-      const prev = useTerminalStore.getState().tabs.flatMap((x) => x.panes).find((p) => p.ptyId === old)
-      if (!prev) return
-      const pane = await spawnPane(prev.profile.id, useUIStore.getState().currentWorkspace ?? undefined)
-      if ('error' in pane) return setError(pane.error)
-      disposeTerminalInstance(old)
-      terminalActions.replacePane(old, pane)
+      const workspaceId = useUIStore.getState().currentWorkspace
+      const prev = terminalTabsForWorkspace(useTerminalStore.getState().tabs, workspaceId).flatMap((x) => x.panes).find((p) => p.ptyId === old)
+      if (!prev || prev.exited === undefined || !canInteractWithPty(old)) return
+      const pane = await spawnPane(prev.profile.id, workspaceId)
+      if ('error' in pane) return setFailure({ workspaceId, error: pane.error })
+      if (terminalActions.replacePane(old, pane)) disposeTerminalInstance(old)
+      else killPty(pane.ptyId, workspaceId)
     }
     window.addEventListener('pi-desktop:terminal-close-pane', onClose)
     window.addEventListener('pi-desktop:terminal-restart', onRestart)
@@ -186,7 +203,10 @@ export function TerminalDrawer() {
   }, [closePane])
 
   useEffect(() => {
-    const onErr = (e: Event) => setError(String((e as CustomEvent).detail ?? ''))
+    const onErr = (e: Event) => {
+      const detail = (e as CustomEvent<{ workspaceId: TerminalWorkspaceId; error: string }>).detail
+      if (detail && typeof detail.error === 'string') setFailure(detail)
+    }
     window.addEventListener('pi-desktop:terminal-error', onErr)
     return () => window.removeEventListener('pi-desktop:terminal-error', onErr)
   }, [])
@@ -211,27 +231,27 @@ export function TerminalDrawer() {
   }
 
   const split = async (p: ShellProfile) => {
-    if (!tab) return
-    const pane = await spawnPane(p.id, useUIStore.getState().currentWorkspace ?? undefined)
-    if ('error' in pane) setError(pane.error)
-    else terminalActions.splitTab(tab.id, pane)
+    if (!tab || useUIStore.getState().currentWorkspace !== workspaceId || (tab.workspaceId ?? null) !== workspaceId) return
+    const pane = await spawnPane(p.id, workspaceId)
+    if ('error' in pane) setFailure({ workspaceId, error: pane.error })
+    else if (!terminalActions.splitTab(tab.id, pane)) killPty(pane.ptyId, workspaceId)
   }
 
   return (
-    <div className="terminal-drawer relative flex h-full min-h-0 flex-col border-t border-border" style={{ background: 'var(--bg-base)' }} aria-hidden={!open}>
+    <div className="terminal-drawer relative flex h-full min-h-0 flex-col border-t border-border" style={{ background: 'var(--bg-base)' }} aria-hidden={!open || !enabled} {...(!enabled ? { inert: '' } : {})}>
       <div className="absolute inset-x-0 -top-1 z-20 h-2 cursor-row-resize" onMouseDown={startResize} role="separator" aria-orientation="horizontal" aria-label={t('common:terminal.resize')} />
       <div className="flex h-8 shrink-0 items-center gap-1 px-2" role="tablist" aria-label={t('common:terminal.title')}>
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {tabs.map((x) => {
+          {scopedTabs.map((x) => {
             const exited = x.panes.every((p) => p.exited !== undefined)
             return (
               <div
                 key={x.id}
                 role="tab"
-                aria-selected={x.id === activeTab}
+                aria-selected={x.id === selectedTabId}
                 className={cn(
                   'group/tab flex h-6 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2 pr-1 text-[12px]',
-                  x.id === activeTab ? 'bg-muted text-foreground' : 'text-foreground-secondary hover:bg-muted/60',
+                  x.id === selectedTabId ? 'bg-muted text-foreground' : 'text-foreground-secondary hover:bg-muted/60',
                 )}
                 onClick={() => terminalActions.focusTab(x.id)}
                 onAuxClick={(e) => e.button === 1 && x.panes.map((p) => p.ptyId).forEach(closePane)}
@@ -275,9 +295,9 @@ export function TerminalDrawer() {
       </div>
       <div className="relative min-h-0 flex-1">
         {tabs.map((x) => (
-          <SplitPanes key={x.id} tab={x} active={x.id === activeTab} visible={open && x.id === activeTab} onClose={closePane} />
+          <SplitPanes key={x.id} tab={x} active={x.id === selectedTabId} visible={open && x.id === selectedTabId} onClose={closePane} />
         ))}
-        {tabs.length === 0 ? (
+        {scopedTabs.length === 0 ? (
           <div className="flex h-full items-center justify-center text-[12px] text-foreground-tertiary">
             <button type="button" className="rounded-md px-2 py-1 hover:bg-muted hover:text-foreground" onClick={() => void openTerminalTab()}>
               {t('common:terminal.empty')}
@@ -286,9 +306,9 @@ export function TerminalDrawer() {
         ) : null}
       </div>
       {menuFor === 'new' && newRef.current ? (
-        <ProfileMenu anchor={newRef.current} onPick={(p) => { setError(null); void openTerminalTab(p.id) }} onClose={() => setMenuFor(null)} />
+        <ProfileMenu key={terminalWorkspaceKey(workspaceId)} workspaceId={workspaceId} anchor={newRef.current} onPick={(p) => { setError(null); void openTerminalTab(p.id) }} onClose={() => setMenuFor(null)} />
       ) : null}
-      {menuFor === 'split' && splitRef.current ? <ProfileMenu anchor={splitRef.current} onPick={(p) => void split(p)} onClose={() => setMenuFor(null)} /> : null}
+      {menuFor === 'split' && splitRef.current ? <ProfileMenu key={terminalWorkspaceKey(workspaceId)} workspaceId={workspaceId} anchor={splitRef.current} onPick={(p) => void split(p)} onClose={() => setMenuFor(null)} /> : null}
     </div>
   )
 }

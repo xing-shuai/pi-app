@@ -6,6 +6,8 @@ import {
   invalidateAvailableModels,
   isAvailableModelsPending,
   peekAvailableModels,
+  peekAvailableModelsError,
+  resetAvailableModelsForEnvironment,
   prefetchAvailableModels,
   refreshAvailableModels,
   subscribeAvailableModels,
@@ -125,6 +127,35 @@ describe('available model cache', () => {
     }
   })
 
+  it('exposes fixed remote directory failure instead of treating it as an empty catalog, with explicit retry', async () => {
+    vi.useFakeTimers()
+    try {
+      invoke.mockRejectedValueOnce(new Error('unsafe_session_directory:pi-config:write-access:0775 password=do-not-display'))
+      await expect(refreshAvailableModels()).rejects.toThrow('unsafe_session_directory')
+      expect(peekAvailableModelsError()).toContain('global Pi configuration directory')
+      expect(peekAvailableModelsError()).toContain('0775')
+      expect(peekAvailableModelsError()).not.toContain('do-not-display')
+      expect(isAvailableModelsPending()).toBe(false)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(invoke).toHaveBeenCalledOnce()
+      invoke.mockResolvedValueOnce({ models })
+      await refreshAvailableModels()
+      expect(peekAvailableModelsError()).toBeNull()
+      expect(peekAvailableModels()).toEqual(models)
+    } finally { vi.useRealTimers() }
+  })
+  it('does not leak a previous host failure into the new host', async () => {
+    let rejectOld!: (error: Error) => void
+    invoke.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject }))
+    const old = refreshAvailableModels()
+    resetAvailableModelsForEnvironment()
+    invoke.mockResolvedValueOnce({ models })
+    await refreshAvailableModels()
+    rejectOld(new Error('unsafe_session_directory'))
+    await expect(old).rejects.toThrow('unsafe_session_directory')
+    expect(peekAvailableModelsError()).toBeNull()
+    expect(peekAvailableModels()).toEqual(models)
+  })
   it('preserves a previous snapshot when refresh fails', async () => {
     invoke.mockResolvedValueOnce({ models })
     await refreshAvailableModels()

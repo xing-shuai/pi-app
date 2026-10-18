@@ -1,3 +1,5 @@
+import { isVirtualWorkspacePath, virtualWorkspaceDisplayName } from '@shared/remote-code'
+
 export type SandboxEntry = {
   id: string
   path: string
@@ -21,6 +23,7 @@ export type SessionItem = {
 }
 
 export function diskProjectName(path: string) {
+  if (isVirtualWorkspacePath(path)) return virtualWorkspaceDisplayName(path)
   return path.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || path
 }
 

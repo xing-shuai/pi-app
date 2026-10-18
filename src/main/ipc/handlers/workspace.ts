@@ -16,6 +16,7 @@ import { workspaceOpenSchema, workspaceSandboxDeleteSchema } from '../schemas'
 import { errorMessage } from '@shared/error-message'
 import { getMainWindow } from '../../window'
 import { refreshGitWorkspaceWatch } from '../../git-workspace-watch'
+import { setPendingEphemeralSandboxDraft } from '../../session-bind-state'
 
 export function registerWorkspaceHandlers(): void {
   registerHandler('ipc:workspace.ensureWorker', async (req) => {
@@ -36,6 +37,8 @@ export function registerWorkspaceHandlers(): void {
     const name = path.split(/[\\/]/).pop() || path
     configStore.addRecentProject(path)
     configStore.set('currentProject', path)
+    // Explicit foreground project selection leaves the no-directory sandbox draft.
+    setPendingEphemeralSandboxDraft(false)
     try {
       sqliteIndex.upsertWorkspace(path, name, path)
     } catch (e) {
@@ -60,6 +63,7 @@ export function registerWorkspaceHandlers(): void {
 
   registerHandler('ipc:workspace.switch', async (req) => {
     const result = await workerManager.start(req.workspaceId)
+    setPendingEphemeralSandboxDraft(false)
     void refreshGitWorkspaceWatch(getMainWindow())
     return {
       workspaceId: req.workspaceId,

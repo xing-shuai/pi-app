@@ -18,6 +18,12 @@ afterEach(() => {
 const responses = () => invoke.mock.calls.filter((call) => call[0] === 'extension.respondUI').map((call) => call[1])
 
 describe('ExtensionUIHost', () => {
+  it('shows a normalized ordinary default as editable text, never object coercion', () => {
+    render(<ExtensionUIHost />)
+    act(() => useExtensionUIStore.setState({ activePending: { id: 'default-input', method: 'input', title: 'Branch?', defaultValue: 'main' } }))
+    expect(screen.getByRole('textbox')).toHaveValue('main')
+    expect(screen.queryByText('[object Object]')).not.toBeInTheDocument()
+  })
   it('starts every input request empty, focused, and submits on Enter', () => {
     render(<ExtensionUIHost />)
     act(() => useExtensionUIStore.setState({ activePending: { id: 'a', method: 'input', title: 'Name?' } }))

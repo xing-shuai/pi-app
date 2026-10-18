@@ -11,7 +11,7 @@ if (!globalThis.requestAnimationFrame) {
 }
 
 // Mock matchMedia (not available in jsdom)
-if (!window.matchMedia) {
+if (typeof window !== 'undefined' && !window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
@@ -34,7 +34,7 @@ class MockIntersectionObserver {
   disconnect = vi.fn()
   takeRecords = vi.fn()
 }
-if (!window.IntersectionObserver) {
+if (typeof window !== 'undefined' && !window.IntersectionObserver) {
   Object.defineProperty(window, 'IntersectionObserver', {
     writable: true,
     value: MockIntersectionObserver,
@@ -47,7 +47,7 @@ class MockResizeObserver {
   unobserve = vi.fn()
   disconnect = vi.fn()
 }
-if (!window.ResizeObserver) {
+if (typeof window !== 'undefined' && !window.ResizeObserver) {
   Object.defineProperty(window, 'ResizeObserver', {
     writable: true,
     value: MockResizeObserver,

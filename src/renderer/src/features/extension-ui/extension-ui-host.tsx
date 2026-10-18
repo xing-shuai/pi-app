@@ -169,15 +169,16 @@ function ConfirmDialog({ title, message, onAnswer, onSuspend, onCancel }: {
   )
 }
 
-function InputDialog({ title, placeholder, onSubmit, onSuspend, onCancel }: {
+function InputDialog({ title, placeholder, defaultValue, onSubmit, onSuspend, onCancel }: {
   title: string
   placeholder?: string
+  defaultValue?: string
   onSubmit: (value: string) => void
   onSuspend: () => void
   onCancel: () => void
 }) {
   const { t } = useTranslation()
-  const [value, setValue] = useState('')
+  const [value, setValue] = useState(defaultValue ?? '')
   return (
     <ExtensionDialogShell title={title} onDismiss={onSuspend}>
       <form
@@ -286,6 +287,7 @@ export function ExtensionUIHost() {
           key={pending.id}
           title={pending.title}
           placeholder={pending.placeholder}
+          defaultValue={pending.defaultValue}
           onSubmit={(value) => answer({ value })}
           onSuspend={suspendActiveDialog}
           onCancel={() => cancelWorker(pending.id)}

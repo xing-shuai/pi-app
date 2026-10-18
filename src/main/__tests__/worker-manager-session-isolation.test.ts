@@ -108,6 +108,50 @@ describe('WorkerManager session isolation', () => {
     expect(await manager.getSessionContextPreview('/sessions/missing.jsonl')).toBeNull()
   })
 
+  it('pins provider usage to an existing native slot without foreground or worker creation fallback', async () => {
+    const foreground = fakeSlot('/sessions/a.jsonl')
+    const target = fakeSlot('/sessions/b.jsonl')
+    const { manager, internals } = managerWithForeground(foreground)
+    internals.pool.set(target.poolKey, target)
+    replyFrom(target, { type: 'getProviderUsage-done', snapshot: { status: 'ready', windows: [], balances: [] } })
+    expect(await manager.getProviderUsage(target.poolKey, '/workspace', true)).toMatchObject({ status: 'ready' })
+    expect(target.worker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'getProviderUsage', sessionFile: target.poolKey, cwd: '/workspace', force: true }))
+    expect(await manager.getProviderUsage('/unknown', '/workspace')).toMatchObject({ reason: 'session-unavailable' })
+    expect(await manager.getProviderUsage(target.poolKey, '/other')).toMatchObject({ reason: 'session-unavailable' })
+    target.sessionFile = '/mismatched'
+    expect(await manager.getProviderUsage(target.poolKey, '/workspace')).toMatchObject({ reason: 'session-unavailable' })
+    expect(foreground.worker.postMessage).not.toHaveBeenCalled()
+    expect(forkWorkerForCwd).not.toHaveBeenCalled()
+    expect(internals.foregroundPoolKey).toBe(foreground.poolKey)
+    expect(manager.cwd).toBe('/workspace')
+    expect(target.worker.postMessage).toHaveBeenCalledTimes(1)
+  })
+
+  it('rejects WSL slots and stale replies after worker restart', async () => {
+    const slot = fakeSlot('/sessions/native.jsonl')
+    const { manager } = managerWithForeground(slot)
+    replyFrom(slot, { type: 'getProviderUsage-done', snapshot: { status: 'ready' } })
+    slot.runtime.mode = 'wsl'
+    expect(await manager.getProviderUsage(slot.poolKey, '/workspace')).toMatchObject({ reason: 'remote-unsupported' })
+    expect(slot.worker.postMessage).not.toHaveBeenCalled()
+    slot.runtime.mode = 'host'
+    const pending = manager.getProviderUsage(slot.poolKey, '/workspace')
+    queueMicrotask(() => { slot.worker = fakeSlot(slot.poolKey).worker })
+    expect(await pending).toMatchObject({ reason: 'account-changed' })
+  })
+
+  it('bounds provider RPC timeout to 8 seconds and removes pending request', async () => {
+    vi.useFakeTimers()
+    try {
+      const slot = fakeSlot('/sessions/native.jsonl')
+      const { manager } = managerWithForeground(slot)
+      const pending = manager.getProviderUsage(slot.poolKey, '/workspace')
+      await vi.advanceTimersByTimeAsync(8000)
+      expect(await pending).toMatchObject({ status: 'error', reason: 'timeout' })
+      expect(slot.pendingRequests.size).toBe(0)
+    } finally { vi.useRealTimers() }
+  })
+
   it('creates a separate worker when the foreground session is running', async () => {
     const running = fakeSlot(normalizeSessionKey('/sessions/running.jsonl'), true)
     const { manager, internals } = managerWithForeground(running)

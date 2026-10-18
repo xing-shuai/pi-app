@@ -25,10 +25,31 @@ import { registerMcpHandlers } from './ipc/handlers/mcp'
 import { registerModelRouterHandlers } from './ipc/handlers/model-routers'
 import { registerRemoteHandlers } from './ipc/handlers/remote'
 import { registerLinkHandlers } from './ipc/handlers/links'
+import { registerSshHandlers } from './ipc/handlers/ssh'
+import { registerChatHandlers, chatRuntime } from './ipc/handlers/chat'
+import { registerRoutineHandlers, hasActiveRoutineRuns } from './ipc/handlers/routines'
+import { setAdditionalActivityProbe } from './window-close-guard'
+import { registerEnvironmentHandlers } from './ipc/handlers/environments'
+import { registerSessionCatalogHandlers } from './ipc/handlers/session-catalog'
+import { registerProviderUsageHandlers } from './ipc/handlers/provider-usage'
+import { registerLocalFolderHandlers } from './ipc/handlers/local-folders'
+import { registerRemoteCodeHandlers } from './ipc/handlers/remote-code'
+import { routeRemoteCodeInvoke, hasActiveRemoteCodeWork } from './remote-code'
+import { setIpcInvokeRouter } from './ipc/registry'
 
 export { registerHandler, sendEvent } from './ipc/registry'
 
 export function registerAllHandlers(): void {
+  setIpcInvokeRouter((channel, request) => {
+    // Catalog endpoints validate/filter server-known locations themselves; virtual IDs here
+    // are metadata, not a request to execute a local Code handler.
+    if (channel === 'ipc:code.sessions.list' || channel === 'ipc:code.sessions.prepareOpen') return Promise.resolve({ handled: false })
+    return routeRemoteCodeInvoke(channel, request)
+  })
+  registerRemoteCodeHandlers()
+  registerLocalFolderHandlers()
+  registerProviderUsageHandlers()
+  registerSessionCatalogHandlers()
   registerDialogHandlers()
   registerWorkspaceFsHandlers()
   registerWorkspaceHandlers()
@@ -56,4 +77,11 @@ export function registerAllHandlers(): void {
   registerBrowserHandlers()
   registerRemoteHandlers()
   registerLinkHandlers()
+  registerSshHandlers()
+  registerChatHandlers()
+  registerRoutineHandlers()
+  registerEnvironmentHandlers()
+  setAdditionalActivityProbe('routines', hasActiveRoutineRuns)
+  setAdditionalActivityProbe('chat', () => chatRuntime.hasActiveWork)
+  setAdditionalActivityProbe('remote-code', hasActiveRemoteCodeWork)
 }

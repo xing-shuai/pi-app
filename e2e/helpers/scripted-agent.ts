@@ -23,6 +23,8 @@ export type Seen = {
   messages: { role: string; text: string }[]
   /** Model id the request was sent for. */
   model: string
+  /** Actual reasoning setting sent by the SDK, when the provider supports it. */
+  reasoningEffort?: string
   /** Characters of the request's tool definitions and of all its messages (token estimates). */
   toolChars: number
   messageChars: number
@@ -58,7 +60,7 @@ export function startScriptedModel(script: Script, seen: Seen[]): http.Server {
     const firstUser = contentText(messages.find((m) => m.role === 'user') ?? {})
     const toolTexts = messages.filter((m) => m.role === 'tool').map(contentText)
     const tools = (request.tools ?? []).map((t: { function?: { name?: string } }) => t.function?.name ?? '')
-    seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts, messages: messages.map((m) => ({ role: m.role, text: contentText(m) })), model: String(request.model ?? ''), toolChars: JSON.stringify(request.tools ?? []).length, messageChars: JSON.stringify(messages).length })
+    seen.push({ system, tools, toolResults: toolTexts.length, firstUser, toolTexts, messages: messages.map((m) => ({ role: m.role, text: contentText(m) })), model: String(request.model ?? ''), ...((request.reasoning_effort ?? request.reasoning?.effort) ? { reasoningEffort: String(request.reasoning_effort ?? request.reasoning.effort) } : {}), toolChars: JSON.stringify(request.tools ?? []).length, messageChars: JSON.stringify(messages).length })
     const lastUser = contentText([...messages].reverse().find((m) => m.role === 'user') ?? {})
     const step = script(firstUser, toolTexts, lastUser)
 

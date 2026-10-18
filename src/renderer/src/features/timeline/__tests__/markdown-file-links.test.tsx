@@ -98,7 +98,8 @@ describe('Markdown file links', () => {
     await waitFor(() => expect(view.container.querySelector('[data-source-line="128"]')).toHaveTextContent('schedule_link_regression_128 = True'))
     expect(screen.getByRole('tab')).toHaveTextContent('schedule_service.py')
     expect(ipcClient.invoke).toHaveBeenCalledWith('workspace.fs.readText', expect.objectContaining({ path: 'plugins/schedule_service.py' }))
-    await waitFor(() => expect(view.container.querySelector('.native-code-shiki [data-source-line="128"]')).toHaveClass('bg-accent/15'))
+    // Cold Shiki/WASM import competes with other workers during the full suite.
+    await waitFor(() => expect(view.container.querySelector('.native-code-shiki [data-source-line="128"]')).toHaveClass('bg-accent/15'), { timeout: 10000 })
     scrollIntoView.mockClear()
     const readCount = vi.mocked(ipcClient.invoke).mock.calls.filter(([method]) => method === 'workspace.fs.readText').length
     fireEvent.click(screen.getByRole('link', { name: 'schedule_service.py' }))
@@ -160,11 +161,11 @@ describe('Markdown file links', () => {
     expect(ipcClient.invoke).not.toHaveBeenCalled()
   })
 
-  it('updates relative links when the workspace changes', () => {
+  it('does not retarget retained transcript links when the workspace changes', () => {
     render(<MarkdownView>{'[report](./report.pdf)'}</MarkdownView>)
     act(() => useUIStore.getState().setWorkspace('/another-project'))
     fireEvent.click(screen.getByRole('link'))
-    expect(useUIStore.getState().workspaceFileToOpen).toEqual({ workspaceRoot: '/another-project', rel: 'report.pdf' })
+    expect(useUIStore.getState().workspaceFileToOpen).toBeNull()
     expect(ipcClient.invoke).not.toHaveBeenCalled()
   })
 

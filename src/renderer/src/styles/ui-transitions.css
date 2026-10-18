@@ -1,0 +1,39 @@
+/* Short, geometry-preserving transitions. Keep view duration in sync with use-ui-motion.
+   Never scale/translate a Code, terminal or native BrowserView ancestor. */
+@keyframes ui-workspace-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ui-workspace-exit { from { opacity: 1; } to { opacity: 0; } }
+@keyframes ui-surface-enter { from { opacity: .45; } to { opacity: 1; } }
+
+.product-workspace[data-workspace-visibility='enter']:not([hidden]) { z-index: 1; animation: ui-workspace-enter 160ms cubic-bezier(.2,.7,.2,1) both; }
+.product-workspace[data-workspace-visibility='exit']:not([hidden]) { z-index: 0; pointer-events: none; animation: ui-workspace-exit 160ms ease-out both; }
+.product-workspace[hidden] { animation: none; }
+
+.code-location-backdrop, .product-modal-backdrop, .overlay-backdrop { animation: ui-workspace-enter 140ms ease-out both; }
+.code-location-dialog, .product-modal, .overlay-panel { animation: ui-surface-enter 160ms cubic-bezier(.2,.7,.2,1) both; }
+.reference-app-menu, .reference-environment-menu, .reference-account-menu, .session-filter-menu { animation: ui-surface-enter 120ms ease-out both; }
+.workspace-panel-drawer { animation: ui-surface-enter 160ms ease-out both; }
+.reference-settings-dialog .settings-page-enter { animation: ui-surface-enter 180ms ease-out both; }
+.routines-product .rt-detail-grid, .routines-product .rt-output-layout, .routines-product .routine-editor { animation: ui-surface-enter 160ms ease-out both; }
+/* Existing composer menus translate during entry; opacity-only keeps measured anchors stable. */
+.composer-popover { animation: ui-surface-enter 120ms ease-out both; }
+
+.reference-shell .reference-mode-switch > button,
+.reference-shell .reference-sidebar-nav > button,
+.reference-shell .reference-code-nav > button,
+.reference-shell .reference-window-navigation > button,
+.workspace-panel-tabs .workspace-panel-tab {
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-workspace[data-workspace-visibility], .code-location-backdrop, .code-location-dialog,
+  .product-modal-backdrop, .product-modal, .overlay-backdrop, .overlay-panel, .reference-app-menu, .reference-environment-menu,
+  .reference-account-menu, .session-filter-menu, .workspace-panel-drawer, .composer-popover,
+  .reference-settings-dialog .settings-page-enter, .routines-product .rt-detail-grid,
+  .routines-product .rt-output-layout, .routines-product .routine-editor {
+    animation: none !important;
+  }
+  .reference-shell .reference-mode-switch > button, .reference-shell .reference-sidebar-nav > button,
+  .reference-shell .reference-code-nav > button, .reference-shell .reference-window-navigation > button,
+  .workspace-panel-tabs .workspace-panel-tab { transition: none !important; }
+}

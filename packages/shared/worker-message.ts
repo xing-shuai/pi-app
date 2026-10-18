@@ -1,4 +1,18 @@
 import { stripAnsi } from './ansi.ts'
+import type { ProviderUsageSnapshot } from './provider-usage-types'
+
+/** Read-only RPC on an already-bound local worker. Auth never crosses this boundary. */
+export type ProviderUsageWorkerRequest = {
+  type: 'getProviderUsage'
+  requestId?: string
+  sessionFile: string
+  cwd: string
+  force?: boolean
+}
+export type ProviderUsageWorkerResponse = {
+  type: 'getProviderUsage-done'
+  snapshot: ProviderUsageSnapshot
+}
 
 /** Narrow shapes for Pi SDK session messages at the Worker → AppEvent boundary. */
 

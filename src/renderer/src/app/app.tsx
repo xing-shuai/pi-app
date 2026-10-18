@@ -1,9 +1,20 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import type { SessionCatalogEntry } from '@shared/session-catalog-types'
+import { useSwapFade } from '@renderer/hooks/use-ui-motion'
+import { WorkspaceActivityProvider } from '@renderer/features/shell/workspace-activity'
+import '@renderer/features/ssh/ssh-workspace.css'
 import { hydrateBackgroundFromSettings } from '@renderer/lib/theme/background-layer'
 import { ErrorBoundary } from '@renderer/components/app/error-boundary'
 import { MainLayoutShell } from '@renderer/components/app/main-layout-shell'
-import { Sidebar, SidebarContent, SidebarItem, RightPanel } from '@renderer/components/ui/sidebar'
-import { ProjectSidebar } from '@renderer/features/workspace/project-sidebar'
+import { Sidebar, SidebarContent, RightPanel } from '@renderer/components/ui/sidebar'
+import { ReferenceCodeSidebar } from '@renderer/features/workspace/reference-code-sidebar'
+import { ReferenceCodeHome } from '@renderer/components/app/reference-code-home'
+import { enterBlankSession } from '@renderer/lib/blank-session-transition'
+import { isSandboxPath } from '@renderer/features/workspace/project-sidebar-types'
+import '@renderer/features/shell/reference-code.css'
+import '@renderer/styles/timeline-reference-stream.css'
+import '@renderer/styles/compact-scroll-wrap.css'
+import '@renderer/styles/workspace-drawer.css'
 import { MainColRightPanelToggle } from '@renderer/components/app/main-col-right-panel-toggle'
 import { MainColumnWithTimelineScroll } from '@renderer/components/app/main-column-with-timeline-scroll'
 import { ComposerDock } from '@renderer/components/app/composer-dock'
@@ -13,25 +24,23 @@ import { Timeline } from '@renderer/features/timeline/timeline'
 import { Composer } from '@renderer/features/composer/composer'
 
 import { TopBar } from '@renderer/components/app/top-bar'
-import { ImmersiveChrome } from '@renderer/components/app/immersive-chrome'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { onAppEvent, onWorkerExit, onNotificationOpenSession, ipcClient } from '@renderer/lib/ipc-client'
 import { handleNotificationOpenSession } from '@renderer/lib/notification-open-session'
 
-import { activateWorkspace } from '@renderer/lib/activate-workspace'
+import { toast } from 'sonner'
 import { ensureWorkspaceWorkerOnBoot } from '@renderer/lib/ensure-workspace-worker'
 import { refreshComposerRunDisplay } from '@renderer/lib/composer-run-display'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import { useTranslation } from 'react-i18next'
-import { Settings as SettingsIcon } from '@renderer/components/icons'
+import { FilePlus, FolderOpen, RefreshCw, Terminal, X } from '@renderer/components/icons'
+import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
 import { buildRightPanelTabs } from '@renderer/lib/right-panel-catalog'
 import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
-import { RightPanelTabs } from '@renderer/features/shell/right-panel-tabs'
 import { loadNormalizedRightPanelPrefs } from '@renderer/lib/right-panel-runtime'
 import { normalizeTimelineMaxAutoExpandedTools, normalizeTimelineVisibleTurns } from '@shared/timeline-settings'
 import { SidePanelHost } from '@renderer/features/side-panels/side-panel-host'
 import { ExtensionUIHost } from '@renderer/features/extension-ui/extension-ui-host'
-import { AppToaster } from '@renderer/components/app/app-toaster'
 import { markExtensionNotifyAppReady } from '@renderer/lib/extension-notify-policy'
 import {
   hydrateCustomCssOverrideFromSettings,
@@ -41,9 +50,6 @@ import {
 } from '@renderer/features/settings/settings-draft'
 import { CommandPalette, ShortcutsHelpSheet } from '@renderer/features/shell/command-palette'
 import { EmptyState } from '@renderer/components/ui/empty-state'
-import { AppUpdateHost } from '@renderer/lib/app-update-notify'
-import { CloseDecisionDialog } from '@renderer/components/ui/close-decision-dialog'
-import { StatusBar } from '@renderer/features/shell/status-bar'
 import { clearExitedSessionRuntime } from '@renderer/lib/worker-exit-runtime'
 import { handleSdkRuntimeChanged } from '@renderer/lib/sdk-runtime-changed'
 import { prefetchAvailableModels } from '@renderer/lib/available-models-cache'
@@ -54,10 +60,11 @@ import { useDoubleEscapeTree } from '@renderer/hooks/use-double-escape-tree'
 import { useReviewGitData } from '@renderer/features/review/use-review-git-data'
 import { applyUiZoom, readUiZoom } from '@renderer/lib/ui-zoom'
 import { matchShortcut, readShortcutBindings } from '@renderer/lib/shortcut-bindings'
-import { TerminalDrawer, useTerminalShortcut } from '@renderer/features/terminal/terminal-drawer'
+import { TerminalDrawer, openTerminalTab, useTerminalShortcut } from '@renderer/features/terminal/terminal-drawer'
+import { BranchStatusTrigger } from '@renderer/features/git/branch-status'
 import { useBrowserHelpAttention } from '@renderer/features/browser/use-help-attention'
 import { HelpBar } from '@renderer/features/browser/help-bar'
-import { useTerminalStore } from '@renderer/features/terminal/terminal-store'
+import { terminalActions, terminalTabsForWorkspace, useTerminalStore } from '@renderer/features/terminal/terminal-store'
 
 type View = 'main' | 'settings'
 
@@ -76,9 +83,6 @@ const SessionTreeOverlay = lazy(() =>
 const SessionForkOverlay = lazy(() =>
   import('@renderer/features/rewind/session-fork-overlay').then((m) => ({ default: m.SessionForkOverlay })),
 )
-const ProjectHomeView = lazy(() =>
-  import('@renderer/components/app/project-home-view').then((m) => ({ default: m.ProjectHomeView })),
-)
 
 function ShellSuspenseFallback({ label }: { label: string }) {
   return <EmptyState compact title={label} className="min-h-[12rem]" />
@@ -90,12 +94,43 @@ if ((window as unknown as { piDesktop?: { e2e?: boolean } }).piDesktop?.e2e) {
 
 performance.mark('pi:app-module')
 
-export default function App() {
+export type CodeWorkspaceProps = {
+  active?: boolean
+  settingsRequest?: number
+  onSettingsClosed?: () => void
+  onRoutines?: () => void
+  onCustomize?: () => void
+  environmentControl?: ReactNode
+  userName?: string
+  onNewSessionReady?: (handler: (() => void) | null) => void
+  sidebarFooter?: ReactNode
+  onOpenSession?: (entry: SessionCatalogEntry) => Promise<void> | void
+  sessionCatalogRefreshKey?: unknown
+  folderControl?: ReactNode
+  onChooseFolder?: () => void | Promise<void>
+  workspaceLabel?: string
+  workspacePathLabel?: string
+  noProject?: boolean
+  executionLocked?: boolean
+  executionError?: ReactNode
+}
+export default function App(props: CodeWorkspaceProps = {}) {
+  return <WorkspaceActivityProvider active={props.active !== false}><CodeWorkspaceContents {...props} /></WorkspaceActivityProvider>
+}
+function CodeWorkspaceContents({
+  active = true, settingsRequest = 0, onSettingsClosed, onRoutines, onCustomize,
+  environmentControl, userName, onNewSessionReady, sidebarFooter, onOpenSession, sessionCatalogRefreshKey,
+  folderControl, onChooseFolder, workspaceLabel, workspacePathLabel, noProject = false, executionLocked = false, executionError,
+}: CodeWorkspaceProps) {
   if (!performance.getEntriesByName('pi:app-render').length) performance.mark('pi:app-render')
   const { t } = useTranslation()
   const [view, setView] = useState<View>('main')
+  const bootExecutionLocked = useRef(executionLocked)
+  useEffect(() => { if (settingsRequest > 0) setView('settings') }, [settingsRequest])
+  useEffect(() => { if (!active) { setView('main'); void ipcClient.invoke('browser.hideAll').catch(() => {}) } }, [active])
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [panelReloading, setPanelReloading] = useState(false)
   const activePanel = useUIStore((s) => s.activePanel)
   const rightPanelHidden = useRightPanelHidden()
   const modelPickerOpen = useUIStore((s) => s.modelPickerOpen)
@@ -118,10 +153,16 @@ export default function App() {
   const currentWorkspace = useUIStore((s) => s.currentWorkspace)
   const terminalOpen = useTerminalStore((s) => s.open)
   const terminalHeight = useTerminalStore((s) => s.height)
-  useTerminalShortcut()
+  const terminalTabs = useTerminalStore((s) => terminalTabsForWorkspace(s.tabs, currentWorkspace).length)
+  // Keep the old status bar's sleep protection without mounting its memory/status footer.
+  const hasBusySessions = useUIStore((s) => Object.values(s.sessionAttention).some((attention) => attention === 'working' || attention === 'needs-you'))
+  useEffect(() => {
+    void ipcClient.invoke('desktop.setSleepBlock', { on: hasBusySessions }).catch(() => {})
+  }, [hasBusySessions])
+  useTerminalShortcut(active && !executionLocked && view === 'main')
   const ephemeralSandboxDraft = useUIStore((s) => s.ephemeralSandboxDraft)
   const [workspaceTitle, setWorkspaceTitle] = useState<string | undefined>()
-  const canUseTree = view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
+  const canUseTree = active && view === 'main' && (!!currentWorkspace || ephemeralSandboxDraft)
   const { treeOpen, setTreeOpen, forkOpen, setForkOpen } = useDoubleEscapeTree(canUseTree)
 
   useEffect(() => {
@@ -147,7 +188,25 @@ export default function App() {
       .catch(() => setWorkspaceTitle(t('common:sidebar.tempChat')))
   }, [currentWorkspace, ephemeralSandboxDraft, t])
 
-  const projectName = workspaceTitle
+  const projectName = workspaceLabel || workspaceTitle
+  const handleNewSession = useCallback(() => {
+    if (!active) return
+    if (executionLocked) { void onChooseFolder?.(); return }
+    setView('main')
+    const workspace = useUIStore.getState().currentWorkspace
+    enterBlankSession(workspace && !isSandboxPath(workspace) ? 'pending-project' : 'ephemeral-sandbox')
+    void refreshComposerRunDisplay()
+  }, [active, executionLocked, onChooseFolder])
+
+  useEffect(() => {
+    if (!active) return
+    window.addEventListener('pi-desktop:code-new-session', handleNewSession)
+    onNewSessionReady?.(handleNewSession)
+    return () => {
+      window.removeEventListener('pi-desktop:code-new-session', handleNewSession)
+      onNewSessionReady?.(null)
+    }
+  }, [active, handleNewSession, onNewSessionReady])
 
   useEffect(() => {
     const onOpenFork = () => setForkOpen(true)
@@ -157,6 +216,7 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (!active) return
       const bindings = readShortcutBindings()
       if (matchShortcut(event, bindings.commandPalette)) {
         event.preventDefault()
@@ -170,10 +230,11 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [])
+  }, [active])
 
   useEffect(() => {
     markExtensionNotifyAppReady()
+    if (!bootExecutionLocked.current && !useUIStore.getState().currentWorkspace?.startsWith('/__pi_ssh__/')) void ipcClient.invoke('app.codeReady').catch(() => {})
     useExtensionUIStore.getState().resetForSessionContext()
     void ensureWorkspaceWorkerOnBoot()
     void hydrateThemeFromSettings().catch(() => {})
@@ -183,9 +244,23 @@ export default function App() {
     applyUiZoom(readUiZoom())
   }, [])
 
+  // The legacy project tree used to hydrate native recents as a side effect.
+  // Keep that metadata owned by the workbench now that the sidebar is target-neutral.
+  useEffect(() => {
+    if (!active || executionLocked || currentWorkspace?.startsWith('/__pi_ssh__/')) return
+    let live = true
+    void ipcClient.invoke('settings.get', { key: 'recentProjects' }).then((result) => {
+      if (!live || !Array.isArray(result?.settings?.recentProjects)) return
+      const recentProjects = result.settings.recentProjects.filter((path: unknown): path is string => typeof path === 'string' && !path.startsWith('/__pi_ssh__/'))
+      useUIStore.setState({ recentProjects })
+    }).catch(() => {})
+    return () => { live = false }
+  }, [active, executionLocked, currentWorkspace])
+
   useEffect(() => watchSystemTheme(), [])
 
   useEffect(() => {
+    let preloadTimer: number | undefined
     const frame = requestAnimationFrame(() => {
       void loadNormalizedRightPanelPrefs()
         .then(({ catalog, prefs, order }) => applyRightPanelRuntime(catalog, prefs, order))
@@ -207,12 +282,12 @@ export default function App() {
         .catch(() => {})
       prefetchAvailableModels()
       // The composer menus open from a chip click; load their code ahead so the first open is instant.
-      window.setTimeout(() => {
-        void import('@renderer/features/composer/model-picker')
-        void import('@renderer/features/composer/thinking-picker')
+      preloadTimer = window.setTimeout(() => {
+        void import('@renderer/features/composer/model-picker').catch(() => {})
+        void import('@renderer/features/composer/thinking-picker').catch(() => {})
       }, 1500)
     })
-    return () => cancelAnimationFrame(frame)
+    return () => { cancelAnimationFrame(frame); if (preloadTimer !== undefined) window.clearTimeout(preloadTimer) }
   }, [applyRightPanelRuntime])
 
   useEffect(() => {
@@ -256,7 +331,7 @@ export default function App() {
         }
         if (event.key === 'sessions' && event.workspaceId) {
           const workspaceIds = [event.workspaceId]
-          void import('@renderer/lib/refresh-workspace-session-lists').then((m) => m.refreshWorkspaceSessionLists({ workspaceIds }))
+          void import('@renderer/lib/refresh-workspace-session-lists').then((m) => m.refreshWorkspaceSessionLists({ workspaceIds, afterMutation: true }))
         }
         return
       }
@@ -295,49 +370,36 @@ export default function App() {
   }, [setWorkspace])
 
   useEffect(() => {
-    if (pendingExtensionConfig) {
+    if (active && pendingExtensionConfig) {
       setView('settings')
     }
-  }, [pendingExtensionConfig])
+  }, [pendingExtensionConfig, active])
 
   const currentSessionId = useUIStore((s) => s.currentSessionId)
+  const panelMotion = useSwapFade<HTMLDivElement>(activePanel, activePanel === 'browser')
   const timelineItemCount = useUIStore((s) => s.timelineItems.length)
   const historyLoading = useUIStore((s) => s.historyLoading)
+  const pendingNewSession = useUIStore((s) => s.pendingNewSessionPlaceholder)
 
   const handleOpenProject = async () => {
-    if (!window.piDesktop) {
-      console.error('piDesktop not available')
-      return
-    }
-    try {
-      const res = await window.piDesktop.invoke('ipc:dialog:openDirectory')
-      if (res?.path) {
-        await activateWorkspace(res.path, { preferHome: true })
-      }
-    } catch (e) {
-      console.error('[App] Failed to open project:', e)
-    }
+    if (onChooseFolder) { await onChooseFolder(); return }
+    toast.error('The app directory picker is not available yet. Please reopen the Code workspace.')
   }
 
-  const recentProjects = useUIStore((s) => s.recentProjects)
   const fileChanges = useUIStore((s) => s.fileChanges)
   const { gitData } = useReviewGitData({
-    enabled: !!currentWorkspace,
+    enabled: !!currentWorkspace && !noProject,
     workspace: currentWorkspace,
     worktreeChangeSignal: fileChanges,
   })
   const panelPrefs =
-    gitData?.isRepo === false ? { ...rightPanelPrefs, review: false } : rightPanelPrefs
+    noProject || gitData?.isRepo === false ? { ...rightPanelPrefs, review: false } : rightPanelPrefs
   const PANELS = buildRightPanelTabs(rightPanelCatalog, panelPrefs, t, rightPanelOrder)
   const activeCatalogItem = rightPanelCatalog.find((c) => c.id === activePanel)
 
   const isHomeMode =
-    !currentSessionId && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
+    (!currentSessionId || pendingNewSession) && timelineItemCount === 0 && !ephemeralSandboxDraft && !historyLoading
   const showHome = (isHomeMode || ephemeralSandboxDraft) && view === 'main'
-
-  const handleSelectProject = async (path: string) => {
-    await activateWorkspace(path, { preferHome: true })
-  }
 
   const paletteAndShortcuts = (
     <>
@@ -356,13 +418,15 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div
-          className="app-viewport flex flex-col overflow-hidden text-foreground"
+          className="app-viewport product-settings-workspace flex flex-col overflow-hidden text-foreground"
           style={{ background: 'var(--surface-sidebar)' }}
         >
           <TopBar
+            embedded
             onBack={() => {
               useUIStore.getState().requestExtensionConfig(null)
               setView('main')
+              onSettingsClosed?.()
               void refreshComposerRunDisplay()
             }}
             title={t('settings:title')}
@@ -375,9 +439,7 @@ export default function App() {
             </ErrorBoundary>
           </div>
         </div>
-        {paletteAndShortcuts}
-        <AppUpdateHost />
-        <CloseDecisionDialog />
+        {active && paletteAndShortcuts}
       </ErrorBoundary>
     )
   }
@@ -385,53 +447,49 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div
-        className="app-viewport flex flex-col overflow-hidden text-foreground"
-        style={{ background: 'var(--surface-sidebar)' }}
+        className="app-viewport reference-code flex flex-col overflow-hidden text-foreground"
+        data-reference-home={showHome ? 'true' : 'false'}
+        data-reference-right-hidden={rightPanelHidden ? 'true' : 'false'}
       >
-        <ImmersiveChrome projectName={projectName} />
         <MainLayoutShell
           left={
             <Sidebar>
               <SidebarContent>
-                <ProjectSidebar
+                <ReferenceCodeSidebar
+                  onNewSession={handleNewSession}
+                  onOpenSession={onOpenSession}
+                  catalogRefreshKey={sessionCatalogRefreshKey}
                   onOpenProject={handleOpenProject}
                   openProjectLabel={t('sidebar.openProject')}
+                  onRoutines={onRoutines}
+                  onCustomize={onCustomize}
                 />
               </SidebarContent>
-              <div className="border-t border-border/50 p-1.5">
-                <SidebarItem
-                  label={t('sidebar.settings')}
-                  icon={<SettingsIcon className="h-4 w-4" />}
-                  onClick={() => setView('settings')}
-                />
-              </div>
+              {sidebarFooter}
             </Sidebar>
           }
           center={
             <SplitView>
-            <MainColumnWithTimelineScroll className="h-full">
+            <MainColumnWithTimelineScroll className="h-full" motionKey={JSON.stringify([currentWorkspace, currentSessionId])}>
+              {executionError}
               {showHome ? (
-                <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
-                  <ProjectHomeView
-                    projectName={ephemeralSandboxDraft ? t('common:home.newChat') : projectName}
-                    subtitle={
-                      ephemeralSandboxDraft ? t('common:home.firstMsgIsTitle') : undefined
-                    }
-                    recentProjects={recentProjects}
-                    currentWorkspace={currentWorkspace}
-                    ephemeralSandboxDraft={ephemeralSandboxDraft}
-                    onSelectProject={(p) => void handleSelectProject(p)}
-                    onOpenProject={handleOpenProject}
-                  />
-                </Suspense>
+                <ReferenceCodeHome userName={userName} />
               ) : (
                 <Timeline />
               )}
-              <MainColRightPanelToggle />
-              <ComposerDock heroMode={showHome}>
+              {active && <MainColRightPanelToggle disabled={executionLocked} panelIds={PANELS.map((panel) => panel.key)} />}
+              <ComposerDock className="reference-code-dock">
                 {/* The agent waiting on the user in their Chrome: answerable right above the composer. */}
                 <HelpBar activeTabId={null} where="chrome" className="mb-2 rounded-lg border" />
-                <Composer />
+                <div className="reference-code-environment">
+                  {environmentControl}
+                  {folderControl || <button type="button" onClick={() => void handleOpenProject()} className="reference-code-folder" title={workspacePathLabel || currentWorkspace || t('sidebar.openProject')} aria-label={t('sidebar.openProject')}>
+                    <FolderOpen className="h-4 w-4" aria-hidden />
+                    <span>{currentWorkspace && !isSandboxPath(currentWorkspace) && !ephemeralSandboxDraft ? projectName || t('sidebar.openProject') : 'Select folder'}</span>
+                  </button>}
+                  {currentWorkspace && !ephemeralSandboxDraft && !noProject && gitData?.isRepo ? <span className="reference-code-branch-group"><BranchStatusTrigger /><label data-app-tooltip="Creating isolated session worktrees is not implemented yet. Existing worktrees can be opened as folders."><input type="checkbox" disabled checked={false} readOnly />Worktree</label></span> : <button type="button" className="reference-code-folder-add" data-app-tooltip="Open another project folder" aria-label="Open another project folder" onClick={() => void handleOpenProject()}><FilePlus size={16} /></button>}
+                </div>
+                <Composer referenceLayout />
               </ComposerDock>
               {!showHome ? <TimelineScrubber /> : null}
             </MainColumnWithTimelineScroll>
@@ -439,39 +497,36 @@ export default function App() {
           }
           right={
             <RightPanel>
-              <RightPanelTabs
-                panels={PANELS}
-                activePanel={activePanel}
-                setActivePanel={setActivePanel}
-              />
-              {!rightPanelHidden ? (
-                <div className="flex-1 overflow-hidden">
+              {!rightPanelHidden ? <aside id="workspace-panel-drawer" className="workspace-panel-drawer" aria-label="Workspace panel">
+                <header className="workspace-panel-header"><span>Workspace</span><div>
+                  <button type="button" aria-label="Toggle terminal" aria-pressed={terminalOpen} data-app-tooltip="Terminal" disabled={!active || executionLocked} onClick={() => !terminalOpen && terminalTabs === 0 ? void openTerminalTab() : terminalActions.toggle()}><Terminal size={17} /></button>
+                  <button type="button" aria-label="Reload session and project lists (sync with the CLI)" data-app-tooltip="Reload session and project lists" disabled={panelReloading || !active || executionLocked} onClick={() => { setPanelReloading(true); void import('@renderer/lib/reload-current-session-data').then((module) => module.reloadCurrentSessionData()).then((result) => { if (!result.ok) toast.error(result.error || 'Refresh failed') }).catch(() => toast.error('Refresh failed')).finally(() => setPanelReloading(false)) }}><RefreshCw size={16} className={panelReloading ? 'animate-spin' : undefined} /></button>
+                  <button type="button" aria-label="Close workspace panel" data-app-tooltip="Close workspace panel" onClick={() => useUIStore.getState().toggleRightPanel()}><X size={17} /></button>
+                </div></header>
+                <RightPanelTabs panels={PANELS} activePanel={activePanel} setActivePanel={setActivePanel} />
+                <div ref={panelMotion} className="flex-1 min-h-0 overflow-hidden" role="tabpanel" aria-label={PANELS.find((panel) => panel.key === activePanel)?.label || 'Workspace feature'}>
                   <ErrorBoundary label="panel">
                     <Suspense fallback={<ShellSuspenseFallback label={t('common:loading')} />}>
                       <SidePanelHost item={activeCatalogItem} />
                     </Suspense>
                   </ErrorBoundary>
                 </div>
-              ) : null}
+              </aside> : null}
             </RightPanel>
           }
-          bottom={<TerminalDrawer />}
+          bottom={<TerminalDrawer enabled={active && !executionLocked} />}
           bottomOpen={terminalOpen}
           bottomHeight={terminalHeight}
         />
-        <StatusBar />
       </div>
-      <AppToaster />
-      <ExtensionUIHost />
-      <AppUpdateHost />
-      <CloseDecisionDialog />
-      {paletteAndShortcuts}
-      <Suspense fallback={null}>
+      {active && <ExtensionUIHost />}
+      {active && paletteAndShortcuts}
+      {active && <Suspense fallback={null}>
         {modelPickerOpen && <ModelPicker />}
         {thinkingPickerOpen && <ThinkingPicker />}
         {treeOpen && <SessionTreeOverlay open={treeOpen} onClose={() => setTreeOpen(false)} />}
         {forkOpen && <SessionForkOverlay open={forkOpen} onClose={() => setForkOpen(false)} />}
-      </Suspense>
+      </Suspense>}
     </ErrorBoundary>
   )
 }

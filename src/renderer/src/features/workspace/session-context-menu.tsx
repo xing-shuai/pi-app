@@ -6,6 +6,12 @@ import { Copy, FolderOpen, Pencil, Play, Trash2, Columns2 } from '@renderer/comp
 import { selectSessionAttention } from '@renderer/lib/session-attention'
 import { activateWorkspace, switchSessionInPlace } from '@renderer/lib/activate-workspace'
 import { workspacePathsEqual } from '@shared/workspace-path'
+import { isVirtualWorkspacePath } from '@shared/remote-code'
+import { beginSessionNavigation } from '@renderer/lib/session-navigation'
+import { clearSessionFocus, getFocusSessionKey, patchSessionView, sessionKeyFromFile } from '@renderer/lib/session-shell'
+import { clearLiveSessionTimeline } from '@renderer/lib/live-session-timeline-cache'
+import { clearSessionDiskAuthoritative } from '@renderer/lib/session-disk-authority'
+import { clearSessionWidgets } from '@renderer/lib/extension-widget-cache'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { toast } from 'sonner'
@@ -35,7 +41,7 @@ export function SessionContextMenuPortal({
   onSessionsChange: (workspacePath?: string) => void
   /** 重命名成功后本地更新侧栏条目标题：避免整列表重拉（重命名不改变列表顺序，重拉只会引起重渲染闪烁） */
   onSessionRenamed?: (payload: { sessionFile: string; title: string; workspacePath: string }) => void
-  /** 删除确认后立即从侧栏移除条目：删除 IPC 可能较慢（worker 重建 runtime），不让 UI 干等 */
+  /** Remove only after the backend confirms deletion. */
   onSessionRemoved?: (payload: { sessionFile: string; workspacePath: string }) => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -78,39 +84,48 @@ export function SessionContextMenuPortal({
   }
 
   const requestDelete = (target: SessionMenuTarget) => {
-    if (!target.sessionFile) toast.error(t('common:sidebar.deleteMissingFile'))
+    if (target.disconnected) toast.error('Connect to this SSH host before deleting its session')
+    else if (!target.sessionFile) toast.error(t('common:sidebar.deleteMissingFile'))
     else setDeleteTarget(target)
     onClose()
   }
 
   const runDelete = async (target: SessionMenuTarget) => {
     if (!target.sessionFile) return
-    // 确认后立即乐观移除侧栏条目：删除 IPC 要等 worker 重建 runtime，不让 UI 干等；
-    // 完成或失败后再以整列表刷新校准。
-    onSessionRemoved?.({ sessionFile: target.sessionFile, workspacePath: target.workspacePath })
+    if (target.disconnected) { toast.error('Connect to this SSH host before deleting its session'); return }
     try {
       const r = await ipcClient.invoke('session.delete', {
         sessionFile: target.sessionFile,
         workspaceId: target.workspacePath,
       })
       if (r?.ok) {
-        const cur = useUIStore.getState().currentSessionId
-        if (cur === target.sessionId) {
-          useUIStore.getState().setCurrentSession('')
+        clearLiveSessionTimeline(target.sessionFile)
+        clearSessionDiskAuthoritative(target.sessionFile)
+        clearSessionWidgets(target.sessionFile)
+        patchSessionView(target.sessionFile, { sessionId: null, items: [], historyTotal: 0, historyLoaded: 0, runUI: 'idle', streamingAssistantId: null, optimisticPendingUserText: null, agentTurnBootstrapping: false, pendingSteering: [], pendingFollowUp: [], phase: 'empty', sessionMeta: undefined })
+        onSessionRemoved?.({ sessionFile: target.sessionFile, workspacePath: target.workspacePath })
+        const current = useUIStore.getState()
+        if (current.currentSessionId === target.sessionId && workspacePathsEqual(current.currentWorkspace, target.workspacePath) && current.historySessionFile === target.sessionFile) {
+          beginSessionNavigation() // Invalidate late history hydration; do not navigate to a local draft.
+          if (getFocusSessionKey() === sessionKeyFromFile(target.sessionFile)) clearSessionFocus()
+          void ipcClient.invoke('session.setVisible', { sessionFile: null, workspaceId: target.workspacePath }).catch(() => {})
+          useUIStore.getState().setCurrentSession(null)
           useUIStore.getState().clearTimeline()
           useUIStore.getState().loadHistoryItems([])
           useUIStore.getState().setHistoryMeta(0, 0, null)
-          void ipcClient.invoke('session.setPendingBind', { sessionFile: null })
+          useUIStore.getState().setHistoryLoading(false)
+          if (current.workerLiveSnapshot?.sessionFile === target.sessionFile) useUIStore.getState().setWorkerLiveSnapshot({ sessionId: null, sessionFile: null, status: 'idle' })
+          // Remote deletion already detached the exact runtime. Never issue an unscoped local bind.
+          if (!isVirtualWorkspacePath(target.workspacePath)) void ipcClient.invoke('session.setPendingBind', { sessionFile: null, workspaceId: target.workspacePath }).catch(() => {})
         }
         toast.success(t('common:sidebar.deleted'))
         refreshList(target.workspacePath)
       } else {
         toast.error(r?.error || t('common:sidebar.deleteFailed'))
-        // 失败时也刷新：把乐观移除的条目恢复回来
         refreshList(target.workspacePath)
       }
     } catch (e) {
-      toast.error(t('common:sidebar.deleteFailed'))
+      toast.error(e instanceof Error ? e.message : t('common:sidebar.deleteFailed'))
       refreshList(target.workspacePath)
     }
   }
@@ -140,7 +155,8 @@ export function SessionContextMenuPortal({
                   onClick={(e) => {
                     e.stopPropagation()
                     const currentWorkspace = useUIStore.getState().currentWorkspace
-                    if (workspacePathsEqual(menu.target.workspacePath, currentWorkspace)) {
+                    if (menu.target.onContinue) menu.target.onContinue()
+                    else if (workspacePathsEqual(menu.target.workspacePath, currentWorkspace)) {
                       void switchSessionInPlace(menu.target.sessionId, menu.target.sessionFile)
                     } else {
                       void activateWorkspace(menu.target.workspacePath, {
@@ -155,7 +171,7 @@ export function SessionContextMenuPortal({
                   {t('common:sidebar.continue')}
                 </button>
               ) : null}
-              {menu.target.sessionFile ? (
+              {menu.target.sessionFile && !isVirtualWorkspacePath(menu.target.workspacePath) ? (
                 <button
                   type="button"
                   className={itemClass}
@@ -189,7 +205,7 @@ export function SessionContextMenuPortal({
                   {t('common:sidebar.copySessionPath')}
                 </button>
               ) : null}
-              {menu.target.sessionFile ? (
+              {menu.target.sessionFile && !isVirtualWorkspacePath(menu.target.workspacePath) ? (
                 <button
                   type="button"
                   className={itemClass}
@@ -207,6 +223,7 @@ export function SessionContextMenuPortal({
               <button
                 type="button"
                 className={itemClass}
+                disabled={menu.target.disconnected}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -220,6 +237,8 @@ export function SessionContextMenuPortal({
               <button
                 type="button"
                 className={contextMenuDangerItemClass}
+                disabled={menu.target.disconnected}
+                title={menu.target.disconnected ? 'Connect to this SSH host before deleting its session' : undefined}
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => {
                   e.stopPropagation()
@@ -227,7 +246,7 @@ export function SessionContextMenuPortal({
                 }}
               >
                 <Trash2 className="h-3 w-3 shrink-0" strokeWidth={2} />
-                {t('common:sidebar.delete')}
+                {menu.target.disconnected ? 'Connect to delete' : t('common:sidebar.delete')}
               </button>
             </div>,
             document.body,

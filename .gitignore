@@ -1,4 +1,5 @@
 # Dependencies
+.dev-config/
 node_modules/
 # 参考
 参考/

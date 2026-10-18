@@ -7,6 +7,7 @@ import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
 import { WindowControls } from '@renderer/components/app/window-controls'
 
 interface TopBarProps {
+  embedded?: boolean
   onBack?: () => void
   title?: string
   /** @deprecated ignored — running status chrome removed */
@@ -14,7 +15,7 @@ interface TopBarProps {
   projectName?: string
 }
 
-export function TopBar({ onBack, title, projectName }: TopBarProps) {
+export function TopBar({ onBack, title, projectName, embedded = false }: TopBarProps) {
   const { t } = useTranslation()
   const collapsed = useUIStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
@@ -25,7 +26,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
   return (
     <div className="electron-drag flex h-11 items-center justify-between border-b border-border/60 px-3" style={{ background: 'var(--surface-sidebar)' }}>
       <div className="electron-no-drag flex min-w-0 items-center gap-2.5">
-        {isMac && <div aria-hidden className={MAC_TRAFFIC_LIGHTS_SPACER_CLASS} />}
+        {isMac && !embedded && <div aria-hidden className={MAC_TRAFFIC_LIGHTS_SPACER_CLASS} />}
         {!onBack && (
           <button
             onClick={toggleSidebar}
@@ -43,7 +44,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
               e.stopPropagation()
               onBack()
             }}
-            className="electron-no-drag chrome-icon-btn flex items-center gap-1 rounded-md px-2 py-1.5 text-[13px] text-foreground-secondary hover:text-foreground"
+            className={cn('electron-no-drag chrome-icon-btn flex items-center gap-1 rounded-md px-2 py-1.5 text-foreground-secondary hover:text-foreground', embedded ? 'text-[14px]' : 'text-[13px]')}
           >
             <ChevronLeft className="h-4 w-4" />
             {t('common:topbar.back')}
@@ -51,7 +52,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
         )}
         <div className="flex items-center gap-1.5">
           {!isSettings && <CircleDot className="h-3.5 w-3.5 text-primary" />}
-          <span className="text-[13px] font-semibold tracking-tight">{title || t('common:app.name')}</span>
+          <span className={cn('font-semibold tracking-tight', embedded ? 'text-[16px]' : 'text-[13px]')}>{title || t('common:app.name')}</span>
         </div>
         {projectName && (
           <>
@@ -71,7 +72,7 @@ export function TopBar({ onBack, title, projectName }: TopBarProps) {
             <PanelRight className={cn('h-3.5 w-3.5 transition-transform duration-motion-normal ease-motion-ease', rightCollapsed && 'rotate-180')} />
           </button>
         )}
-        <WindowControls className={isSettings ? '-mr-2 border-l border-border/40 pl-0.5' : undefined} />
+        {!embedded && <WindowControls className={isSettings ? '-mr-2 border-l border-border/40 pl-0.5' : undefined} />}
       </div>
     </div>
   )

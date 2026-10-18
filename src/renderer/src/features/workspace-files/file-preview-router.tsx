@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next'
 import { WORKSPACE_TEXT_MAX_BYTES } from '@shared/workspace-preview'
 import MarkdownView from '@renderer/features/timeline/markdown-view'
 import { guessLangFromPath } from '@renderer/lib/shiki-highlighter'
+import { isVirtualWorkspacePath } from '@shared/remote-code'
+import { openCodeFile } from '@renderer/lib/code-file-actions'
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { cn } from '@renderer/lib/utils'
 import { OverlayScrollHost2D } from '@renderer/components/ui/overlay-scrollbar'
@@ -121,9 +123,11 @@ export function FilePreviewRouter({
     return () => { cancelled = true }
   }, [absPath, workspaceRoot, relativePath, mode, readText, maxBytes, refreshKey])
 
-  const openExternal = () => void ipcClient.invoke('shell.openPath', { path: absPath }).then((result) => {
+  const remote = isVirtualWorkspacePath(workspaceRoot)
+  const openExternal = () => void openCodeFile(absPath, { workspaceId: workspaceRoot }).then((result) => {
     if (!result?.ok) toast.error(t('common:sidebar.revealFailed'))
   }).catch(() => toast.error(t('common:sidebar.revealFailed')))
+  const systemButton = <button type="button" disabled={remote} title={remote ? 'Remote files cannot be opened in a local system application' : undefined} className="text-accent hover:underline disabled:opacity-40" onClick={openExternal}>{t('preview.openInSystem')}</button>
   const wrap = (node: ReactNode) => (
     <div className={cn('flex min-h-0 min-w-0 flex-col', fill && 'flex-1')}>
       {truncated && !loading && (
@@ -132,7 +136,7 @@ export function FilePreviewRouter({
           {maxBytes < WORKSPACE_TEXT_MAX_BYTES && (
             <button type="button" className="text-accent hover:underline" onClick={() => setFullReadPath(absPath)}>{t('preview.tryExpandRead')}</button>
           )}
-          <button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button>
+          {systemButton}
         </div>
       )}
       {node}
@@ -143,10 +147,10 @@ export function FilePreviewRouter({
   if (loading) return wrap(<p className="px-3 py-6 text-[12px] text-foreground-secondary/80">{t('preview.loading')}</p>)
   if (loadError) {
     const key = loadError === 'too_large' ? 'tooLarge' : loadError === 'binary' ? 'binary' : loadError === 'not_found' ? 'deleted' : 'error'
-    return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(`preview.${key}`)}</p><button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button></div>)
+    return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(`preview.${key}`)}</p>{systemButton}</div>)
   }
   if (mode === 'image') return wrap(imageUrl ? <div className="flex min-h-0 flex-1 items-center justify-center bg-[var(--bg-1)] p-0"><img src={imageUrl} alt={relativePath} className="max-h-full max-w-full object-contain" /></div> : null)
-  if (mode === 'pdf' || mode === 'binary' || mode === 'sheet') return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(mode === 'pdf' ? 'preview.pdf' : 'preview.binary')}</p><button type="button" className="text-accent hover:underline" onClick={openExternal}>{t('preview.openInSystem')}</button></div>)
+  if (mode === 'pdf' || mode === 'binary' || mode === 'sheet') return wrap(<div className="space-y-2 px-3 py-6 text-[12px] text-foreground-secondary"><p>{t(mode === 'pdf' ? 'preview.pdf' : 'preview.binary')}</p>{systemButton}</div>)
   if (content == null) return wrap(null)
   if (sourceLocation) return wrap(<FileSourcePreview code={content} lang={guessLangFromPath(relativePath)} path={relativePath} fill={fill} sourceLocation={sourceLocation} />)
   if (mode === 'html' && !truncated) return wrap(<iframe ref={frameRef} title="html-preview" sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlDocument} className="min-h-0 w-full flex-1 border-0 bg-[var(--bg-base)]" />)

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { dismissExtensionDialogState } from './extension-ui-channel'
+import { ensureExtensionUIChannel, dismissExtensionDialogState } from './extension-ui-channel'
+import { ipcClient, onExtensionUIRequest } from './ipc-client'
 import { useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 
 vi.mock('@renderer/lib/ipc-client', () => ({
@@ -22,6 +23,15 @@ beforeEach(() => {
 })
 
 describe('dismissExtensionDialogState', () => {
+  it('declines the remote naming wizard without enqueueing it, keeping other inputs typed', () => {
+    ensureExtensionUIChannel()
+    const receive = vi.mocked(onExtensionUIRequest).mock.calls.at(-1)![0]
+    receive({ id: 'ssh-ui-fixture', method: 'input', title: 'Agent name: (default: project)', placeholder: { defaultValue: 'project' }, sessionFile: '/__pi_ssh__/host/hash/project/.sessions/file' })
+    expect(useExtensionUIStore.getState().activePending).toBeNull()
+    expect(ipcClient.invoke).toHaveBeenCalledWith('extension.respondUI', expect.objectContaining({ id: 'ssh-ui-fixture', cancelled: true, sessionFile: '/__pi_ssh__/host/hash/project/.sessions/file' }))
+    receive({ id: 'ordinary-input', method: 'input', title: 'Branch?', placeholder: { defaultValue: 'main' } })
+    expect(useExtensionUIStore.getState().activePending).toMatchObject({ method: 'input', defaultValue: 'main' })
+  })
   it('clears a suspended dialog when its source dismisses it', () => {
     useExtensionUIStore.setState({
       activePending: null,

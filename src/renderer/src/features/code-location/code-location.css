@@ -1,0 +1,128 @@
+.code-location-backdrop { position: fixed; inset: 0; z-index: 700; display: flex; align-items: center; justify-content: center; background: #0009; color: #eeeeeb; font-family: var(--font-sans); font-size: 16px; }
+.code-location-dialog { display: flex; flex-direction: column; width: 624px; max-width: calc(100% - 48px); max-height: calc(100% - 64px); border: 1px solid #3a3a37; border-radius: 16px; background: #21211f; box-shadow: 0 12px 40px #0005, 0 0 0 1px #ffffff05; overflow: hidden; }
+.code-location-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 24px 28px 0; }
+.code-location-dialog > header h2 { margin: 0; font-size: 28px; font-weight: 600; line-height: 1.4; letter-spacing: -.5px; }
+.code-location-dialog > header > button { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; border: 0; background: transparent; color: #dededb; border-radius: 6px; }
+.code-location-dialog > header > button:hover { background: #ffffff0b; }
+.code-location-dialog-body { min-height: 0; padding: 20px 28px 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.code-location-dialog p { line-height: 1.5; }
+.code-location-dialog .code-location-description { margin: 4px 0 28px; color: #c2c2ba; font-size: 16px; }
+.code-location-description span { color: #78b6ee; }
+.code-location-dialog fieldset { margin: 0; padding: 0; border: 0; }
+.code-location-dialog:not(.reference-settings-dialog) label { display: flex; flex-direction: column; gap: 12px; margin-top: 32px; font-size: 16px; font-weight: 500; line-height: 1.4; }
+.code-location-dialog fieldset > label:first-child { margin-top: 0; }
+.code-location-dialog:not(.reference-settings-dialog) input, .code-location-dialog:not(.reference-settings-dialog) select { box-sizing: border-box; width: 100%; height: 48px; padding: 10px 16px; border: 1px solid #444440; border-radius: 12px; background: #2a2a28; color: #eeeeeb; font: inherit; font-size: 16px; font-weight: 400; outline: 0; }
+.code-location-dialog:not(.reference-settings-dialog) input::placeholder { color: #8e8e87; opacity: 1; }
+.code-location-dialog:not(.reference-settings-dialog) input:focus, .code-location-dialog:not(.reference-settings-dialog) select:focus { border-color: #278bec; box-shadow: 0 0 0 2px #168af733; }
+.code-location-dialog:not(.reference-settings-dialog) input:disabled { opacity: .45; }
+.code-location-dialog .code-location-help { margin: 12px 0 0; color: #94948c; font-size: 14px; font-weight: 400; line-height: 1.5; }
+.code-location-dialog label > .code-location-help { margin: 0; }
+.code-location-browse-row { display: flex; align-items: center; gap: 14px; }
+.code-location-browse-row input { flex: 1; min-width: 0; }
+.code-location-dialog button { cursor: pointer; }
+.code-location-dialog button:disabled { cursor: default; opacity: .45; }
+.code-location-dialog button:focus-visible { outline: 2px solid #168af7; outline-offset: 2px; }
+.code-location-browse-row button, .code-location-test, .remote-folder-path button, .code-location-dialog > footer > button { display: inline-flex; align-items: center; justify-content: center; white-space: nowrap; flex-shrink: 0; min-height: 38px; padding: 6px 12px; border: 0; border-radius: 9px; background: #373735; color: #eeeeeb; font: inherit; font-size: 16px; }
+.code-location-browse-row button { height: 48px; min-width: 118px; }
+.code-location-dialog .connection-auth-selection { flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; margin-top: 14px; color: #b3b3aa; font-size: 14px; }
+.connection-auth-selection select { width: auto; max-width: 75%; height: 34px; padding: 4px 8px; border-radius: 7px; font-size: 14px; }
+.code-location-advanced { margin-top: 24px; color: #b3b3aa; font-size: 14px; }
+.code-location-advanced summary { cursor: pointer; }
+.code-location-advanced label { margin-top: 16px; }
+.code-location-test { margin-top: 32px; margin-bottom: 2px; }
+.code-location-test-result { color: #9bc3a4; font-size: 14px; }
+.code-location-error { color: #f4a49b; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.code-location-dialog > footer { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 20px 28px 28px; margin-top: 0; border-top: 1px solid #353532; }
+.code-location-dialog > footer > .code-location-primary { background: #fff; color: #111; padding-inline: 16px; }
+.ssh-connection-reference-dialog > footer { margin-top: 0; }
+.ssh-connection-reference-dialog .code-location-dialog-body { padding-bottom: 0; }
+.remote-folder-dialog .code-location-dialog-body { padding-top: 14px; padding-bottom: 20px; }
+.remote-folder-dialog > footer { border-top: 0; padding-top: 0; flex-wrap: wrap; }
+.remote-folder-path { display: flex; align-items: center; gap: 8px; }
+.remote-folder-path input { flex: 1; min-width: 0; height: 40px; border-radius: 10px; padding: 8px 14px; }
+.remote-folder-path button { min-width: 54px; height: 40px; }
+.remote-folder-breadcrumb { display: flex; align-items: center; gap: 6px; padding: 16px 4px 18px; overflow-x: auto; font-size: 16px; color: #c5c5bc; }
+.remote-folder-breadcrumb > button, .remote-folder-breadcrumb span { display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.remote-folder-breadcrumb button { border: 0; background: transparent; padding: 0 3px; color: inherit; }
+.remote-folder-list { border: 1px solid #3a3a36; border-radius: 10px; min-height: 220px; max-height: 308px; overflow: auto; padding: 4px; scrollbar-width: thin; }
+.remote-folder-list > button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 38px; padding: 7px 12px; border: 0; border-radius: 5px; background: transparent; color: #c4c4b9; text-align: left; font: inherit; }
+.remote-folder-list > button:hover { background: #ffffff09; }
+.remote-folder-list > button svg { color: #97978d; flex-shrink: 0; }
+.remote-folder-list > p { padding: 8px 12px; font-size: 14px; color: #aaa; }
+.trust-workspace-dialog { width: 480px; border-radius: 12px; }
+.trust-workspace-dialog > header { padding: 20px 24px 0; }
+.trust-workspace-dialog > header h2 { font-size: 16px; font-weight: 500; letter-spacing: 0; }
+.trust-workspace-dialog > header > button { display: none; }
+.trust-workspace-dialog .code-location-dialog-body { padding: 4px 24px 0; }
+.trust-workspace-dialog .code-location-dialog-body > p { margin: 0; color: #bfbfb5; font-size: 16px; }
+.trust-workspace-dialog code { display: block; margin-top: 16px; font: 14px/1.6 var(--font-mono); overflow-wrap: anywhere; }
+.trust-workspace-dialog .trust-workspace-host { color: #92928a !important; font-size: 14px !important; }
+.trust-workspace-host span { font-family: var(--font-mono); color: #d5d5ce; }
+.trust-workspace-dialog .code-location-dialog-body > .code-location-help { margin-top: 16px; color: #92928a; font-size: 14px; }
+.trust-workspace-dialog > footer { border: 0; padding: 16px 24px 24px; }
+.trust-workspace-dialog > footer > button { min-height: 28px; padding: 3px 10px; border-radius: 7px; }
+.connection-progress-dialog { width: 480px; }
+.connection-progress-dialog > header h2 { font-size: 22px; }
+.connection-progress-dialog .code-location-dialog-body { padding-bottom: 20px; color: #bfbfb5; }
+.unified-code-auth .ssh-password-backdrop { z-index: 760; }
+.unified-code-auth .ssh-password-dialog { font-family: var(--font-sans); font-size: 16px; }
+.unified-code-auth .ssh-password-dialog label, .unified-code-auth .ssh-password-dialog input, .unified-code-auth .ssh-password-dialog button { font: inherit; }
+.unified-code-auth .ssh-password-dialog .ssh-password-privacy { font-size: 14px; }
+.reference-environment-profile { display: flex; align-items: center; }
+.reference-environment-profile > button { display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 8px; border-radius: 5px; font-size: 16px; }
+.reference-environment-profile > button:first-child { flex: 1; justify-content: space-between; text-align: left; }
+.reference-environment-profile > button:hover { background: #ffffff0a; }
+.reference-environment-profile > button + button { color: #a6a69d; }
+.reference-menu-separator { height: 1px; background: #454540; margin: 4px 10px; }
+.reference-folder-control { position: relative; display: inline-flex; }
+.reference-folder-control .reference-environment-menu { min-width: 200px; width: max-content; max-width: 340px; }
+.reference-folder-menu-label { display: block; padding: 4px 10px; font-size: 14px; color: #92928b; }
+.reference-folder-control .reference-environment-menu > button { gap: 16px; min-width: 180px; height: 30px; }
+.reference-code-branch-group { display: inline-flex; align-items: center; gap: 7px; min-height: 28px; padding: 2px 7px; border-radius: 6px; background: var(--reference-selection, #343434); color: var(--text-secondary); font-size: 16px; }
+.reference-code-branch-group .branch-status-trigger { display: inline-flex; align-items: center; gap: 7px; padding: 0; min-height: 22px; border: 0; background: transparent; font-size: 16px; color: inherit; }
+.reference-code-branch-group .branch-status-trigger > svg { width: 16px; height: 16px; }
+.reference-code-branch-group label { display: inline-flex; align-items: center; gap: 6px; padding-left: 7px; border-left: 1px solid #ffffff20; cursor: not-allowed; }
+.reference-code-branch-group input { width: 14px; height: 14px; margin: 0; accent-color: #4f9ad4; }
+.reference-code-environment-error { margin: 12px 48px 0; padding: 10px 14px; border: 1px solid #784c46; border-radius: 8px; color: #efb4a9; font-size: 14px; background: #2b1f1d; }
+.reference-code-environment-error button { margin-left: 12px; text-decoration: underline; }
+.local-folder-dialog { width: 680px; min-width: 0; background: var(--bg-base, #21211f); color: var(--text-primary, #eeeeeb); border-color: var(--border-base, #3a3a37); }
+.local-folder-dialog > header h2 { font-size: 24px; }
+.local-folder-dialog > header > button { color: inherit; }
+.local-folder-dialog .code-location-dialog-body { padding-top: 12px; padding-bottom: 20px; overflow-x: hidden; scrollbar-width: thin; }
+.local-folder-content, .local-folder-content > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.local-folder-machine { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; }
+.local-folder-dialog .code-location-error { color: var(--danger-semantic, #f4a49b); }
+.local-folder-dialog .code-location-help { color: var(--text-secondary, #94948c); margin-top: 8px; }
+.local-folder-shortcuts { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 12px; }
+.local-folder-shortcuts button, .local-folder-path button, .local-folder-tools > button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--border-base, #444440); border-radius: 9px; background: var(--bg-2, #2a2a28); color: inherit; font: inherit; }
+.local-folder-shortcuts button { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.local-folder-recents { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 14px; }
+.local-folder-recents > span { color: var(--text-secondary, #94948c); font-size: 14px; }
+.local-folder-recents button { max-width: 220px; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 0; border-radius: 5px; color: inherit; background: var(--bg-2, #2a2a28); font: inherit; font-size: 14px; }
+.local-folder-path { display: flex; align-items: center; gap: 8px; }
+.code-location-dialog.local-folder-dialog .local-folder-path input { flex: 1; min-width: 0; height: 42px; background: var(--bg-1, #2a2a28); color: inherit; border-color: var(--border-base, #444440); border-radius: 10px; }
+.local-folder-path button { flex-shrink: 0; height: 42px; }
+.local-folder-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; padding: 12px 0; }
+.local-folder-breadcrumb > span { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; gap: 3px; }
+.local-folder-breadcrumb svg { flex-shrink: 0; }
+.local-folder-breadcrumb button { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 5px; border: 0; border-radius: 5px; background: transparent; color: var(--text-secondary, #c5c5bc); font: inherit; }
+.local-folder-breadcrumb button[aria-current] { color: inherit; }
+.local-folder-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0 10px; }
+.code-location-dialog.local-folder-dialog .local-folder-tools label { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 400; color: var(--text-secondary, #b3b3aa); }
+.code-location-dialog.local-folder-dialog .local-folder-tools input { width: 16px; height: 16px; padding: 0; margin: 0; accent-color: #278bec; }
+.local-folder-list { min-height: 170px; max-height: min(280px, 32vh); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--border-base, #444440) transparent; padding: 4px; border: 1px solid var(--border-base, #3a3a36); border-radius: 10px; }
+.local-folder-list > button { display: flex; align-items: center; gap: 12px; width: 100%; min-width: 0; min-height: 40px; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; font: inherit; font-size: 16px; }
+.local-folder-list > button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.local-folder-list svg { flex-shrink: 0; color: var(--text-secondary, #97978d); }
+.local-folder-list small { margin-left: auto; color: var(--text-secondary, #94948c); font-size: 14px; }
+.local-folder-list p { padding: 8px 12px; color: var(--text-secondary, #aaa); font-size: 14px; }
+.local-folder-list button:hover, .local-folder-breadcrumb button:hover { background: color-mix(in srgb, var(--text-primary, #eeeeeb) 6%, transparent); }
+.local-folder-dialog > footer { flex-wrap: wrap; border-color: var(--border-base, #353532); }
+.local-folder-dialog > footer > button { background: var(--bg-2, #373735); color: inherit; }
+.local-folder-dialog > footer > .code-location-primary { background: var(--text-primary, #eeeeeb); color: var(--bg-base, #21211f); }
+.code-location-backdrop:has(.reference-settings-dialog) { z-index: 600; background: #0008; }
+.reference-settings-dialog { width: calc(100% - 80px); height: calc(100% - 112px); max-width: none; max-height: none; position: relative; background: #1b1b1a; border-radius: 16px; }
+.reference-settings-dialog > header { position: absolute; z-index: 5; top: 16px; right: 16px; padding: 0; }
+.reference-settings-dialog > header h2 { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+.reference-settings-dialog > .code-location-dialog-body { display: flex; flex: 1; padding: 0; min-height: 0; overflow: hidden; }
+.reference-settings-dialog > .code-location-dialog-body > section { display: flex; flex: 1; min-width: 0; min-height: 0; }

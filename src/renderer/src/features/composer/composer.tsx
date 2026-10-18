@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Send, Square, Upload, Plus } from '@renderer/components/icons'
+import { CornerDownLeft, Send, Square, Upload, Plus } from '@renderer/components/icons'
 import { useUIStore } from '@renderer/stores/ui-store'
 import { cn } from '@renderer/lib/utils'
 import {
@@ -16,6 +16,7 @@ import { AttachmentChip } from './attachment-chip'
 import { ComposerModelStrip } from './composer-model-strip'
 import { ComposerToolsMenu } from './composer-tools-menu'
 import { ComposerMetricsInline } from './composer-metrics-inline'
+import { CodeUsagePopover } from './code-usage-popover'
 import { ComposerPendingQueue } from './composer-pending-queue'
 import { ComposerAdapterWidgetHost } from './composer-adapter-widget-host'
 import { useComposerMetrics } from './use-composer-metrics'
@@ -64,7 +65,7 @@ function prewarmWorkspaceWorker(workspace: string): void {
   })
 }
 
-export function Composer() {
+export function Composer({ referenceLayout = false }: { referenceLayout?: boolean } = {}) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
@@ -138,6 +139,15 @@ export function Composer() {
     setModelPickerOpen(false)
     setThinkingPickerOpen(false)
   }, [sessionPreview, setModelPickerOpen, setThinkingPickerOpen])
+
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    editor.setAttribute('role', 'textbox')
+    editor.setAttribute('aria-label', referenceLayout ? 'Describe a task or ask a question' : t('composer:placeholder'))
+    editor.setAttribute('aria-multiline', 'true')
+    editor.setAttribute('aria-disabled', String(!canSendMessages))
+  }, [referenceLayout, canSendMessages, t])
 
   const updateFromEditor = useCallback(() => {
     const el = editorRef.current
@@ -368,9 +378,61 @@ export function Composer() {
     runComposerAbort,
   })
 
+  const hasContent = !!text.trim() || attachments.length > 0
+  const actions = (
+    <div className="composer-actions flex shrink-0 items-center gap-1.5">
+      {showComposerStop && <button
+        type="button"
+        onClick={handleAbort}
+        data-app-tooltip={t('composer:stop')}
+        aria-label={t('composer:stop')}
+        className={cn('composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-md',
+          hasContent ? 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground' : 'bg-foreground text-background hover:bg-foreground/85')}
+      ><Square className="h-3 w-3 fill-current" /></button>}
+      {(!showComposerStop || hasContent) && (
+        !referenceLayout && !showComposerStop && !hasContent ? <ComposerVoiceMicButton
+          voiceState={voiceState} disabled={voiceDisabled} onClick={toggleVoice} onHoldStart={holdStart} onHoldEnd={holdEnd}
+        /> : <button
+          type="button"
+          onClick={handleSend}
+          disabled={!hasContent || !canSendMessages}
+          data-app-tooltip={showComposerStop ? t('composer:joinQueue') : t('composer:send')}
+          aria-label={showComposerStop ? t('composer:joinQueue') : t('composer:send')}
+          className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
+        >{referenceLayout ? <CornerDownLeft className="h-4 w-4" /> : <Send className="h-3.5 w-3.5" />}</button>
+      )}
+    </div>
+  )
+  const toolbar = (
+    <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
+      <button
+        type="button" onClick={attachmentHandlers.pickAttachments} disabled={!canSendMessages}
+        data-app-tooltip={t('composer:addFile')} aria-label={t('composer:addFile')}
+        className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
+      ><Plus className="h-[15px] w-[15px]" strokeWidth={2} /></button>
+      {referenceLayout && <ComposerVoiceMicButton
+        voiceState={voiceState} disabled={voiceDisabled} onClick={toggleVoice} onHoldStart={holdStart} onHoldEnd={holdEnd}
+      />}
+      {canSendMessages && <ComposerToolsMenu running={isRunning} />}
+      <div className="min-w-0 flex-1">
+        {canSendMessages && <ComposerModelStrip
+          model={model} thinkingLevel={thinkingLevel}
+          modelPickerOpen={modelPickerOpen} thinkingPickerOpen={thinkingPickerOpen}
+          onModelClick={() => { setThinkingPickerOpen(false); setModelPickerOpen(!modelPickerOpen) }}
+          onThinkingClick={() => { setModelPickerOpen(false); setThinkingPickerOpen(!thinkingPickerOpen) }}
+        />}
+      </div>
+      {referenceLayout && <span className="reference-code-policy" data-app-tooltip={sessionPreview ? 'Read-only session preview' : 'Pi coding tools use your user filesystem and command permissions; an approval-mode selector is not implemented yet'}>{sessionPreview ? 'Read only' : 'Code'}</span>}
+      {canCompose && (!referenceLayout || isRunning) && <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} showContext={!referenceLayout} />}
+      {referenceLayout && <CodeUsagePopover metrics={metrics} />}
+      {!referenceLayout && actions}
+    </div>
+  )
+
   return (
     <div
       data-composer-root
+      data-composer-variant={referenceLayout ? 'reference' : undefined}
       className="relative min-w-0"
       onDragEnter={attachmentHandlers.handleDragEnter}
       onDragLeave={attachmentHandlers.handleDragLeave}
@@ -454,7 +516,7 @@ export function Composer() {
             ))}
           </div>
         )}
-        <div className="relative flex flex-col gap-1 px-2.5 pb-2 pt-2">
+        <div className="composer-input-row relative flex flex-col gap-1 px-2.5 pb-2 pt-2">
           <ComposerVoiceInputOverlay
             voiceState={voiceState}
             active={
@@ -483,7 +545,9 @@ export function Composer() {
                 ? ''
                 : sessionPreview
                   ? t('composer:subagentPreviewReadOnly')
-                  : ephemeralSandboxDraft && !currentWorkspace
+                  : referenceLayout
+                    ? 'Describe a task or ask a question'
+                    : ephemeralSandboxDraft && !currentWorkspace
                     ? t('composer:firstMsgIsTitle')
                     : canCompose
                       ? t('composer:placeholder')
@@ -491,92 +555,11 @@ export function Composer() {
             }
             disabled={!canSendMessages || voiceState === 'transcribing' || voiceState === 'recording'}
           />
-          <div className="composer-toolbar flex min-h-[30px] items-center gap-1.5">
-            <button
-              type="button"
-              onClick={attachmentHandlers.pickAttachments}
-              disabled={!canSendMessages}
-              title={t('composer:addFile')}
-              className="composer-toolbar-btn flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-foreground-secondary/70 disabled:opacity-30"
-            >
-              <Plus className="h-[15px] w-[15px]" strokeWidth={2} />
-            </button>
-            {canSendMessages && <ComposerToolsMenu running={isRunning} />}
-            <div className="min-w-0 flex-1">
-              {canSendMessages && (
-                <ComposerModelStrip
-                  model={model}
-                  thinkingLevel={thinkingLevel}
-                  modelPickerOpen={modelPickerOpen}
-                  thinkingPickerOpen={thinkingPickerOpen}
-                  onModelClick={() => {
-                    setThinkingPickerOpen(false)
-                    setModelPickerOpen(!modelPickerOpen)
-                  }}
-                  onThinkingClick={() => {
-                    setModelPickerOpen(false)
-                    setThinkingPickerOpen(!thinkingPickerOpen)
-                  }}
-                />
-              )}
-            </div>
-            {canCompose && (
-              <ComposerMetricsInline metrics={metrics} isRunning={showComposerStop || isRunning} />
-            )}
-            <div className="flex shrink-0 items-center gap-1.5">
-              {(() => {
-                const hasContent = !!text.trim() || attachments.length > 0
-                // Running: stop is the main action until there is something to queue; then
-                // "queue" is primary and stop steps back to a quiet secondary button.
-                if (!showComposerStop) return null
-                return (
-                  <button
-                    type="button"
-                    onClick={handleAbort}
-                    title={t('composer:stop')}
-                    aria-label={t('composer:stop')}
-                    className={cn(
-                      'composer-toolbar-send flex h-8 w-8 items-center justify-center rounded-md',
-                      hasContent
-                        ? 'text-foreground-secondary hover:bg-[var(--bg-hover)] hover:text-foreground'
-                        : 'bg-foreground text-background hover:bg-foreground/85',
-                    )}
-                  >
-                    <Square className="h-3 w-3 fill-current" />
-                  </button>
-                )
-              })()}
-              {(() => {
-                const hasContent = !!text.trim() || attachments.length > 0
-                if (showComposerStop && !hasContent) return null
-                const voicePrimary = !showComposerStop && !hasContent
-                if (voicePrimary) {
-                  return (
-                    <ComposerVoiceMicButton
-                      voiceState={voiceState}
-                      disabled={voiceDisabled}
-                      onClick={toggleVoice}
-                      onHoldStart={holdStart}
-                      onHoldEnd={holdEnd}
-                    />
-                  )
-                }
-                return (
-                  <button
-                    type="button"
-                    onClick={handleSend}
-                    disabled={(!text.trim() && attachments.length === 0) || !canSendMessages}
-                    title={showComposerStop ? t('composer:joinQueue') : t('composer:send')}
-                    className="composer-toolbar-send composer-send flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-25 disabled:pointer-events-none"
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </button>
-                )
-              })()}
-            </div>
-          </div>
+          {referenceLayout && actions}
+          {!referenceLayout && toolbar}
         </div>
       </div>
+      {referenceLayout && toolbar}
     </div>
   )
 }

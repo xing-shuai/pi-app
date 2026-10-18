@@ -4,6 +4,10 @@ import { createWindow, getMainWindow } from './window'
 import { refreshGitWorkspaceWatch } from './git-workspace-watch'
 import { registerAllHandlers } from './ipc'
 import { workerManager } from './worker-manager'
+import { routineRuntime } from './routines/runtime'
+import { chatRuntime } from './ipc/handlers/chat'
+import { shutdownSshWorkspace } from './ipc/handlers/ssh'
+import { remoteCodeRuntime, remoteTerminalCount } from './remote-code'
 import { sessionPreviewProcess } from './session-preview-process'
 import { guardAppQuit, setRunningTerminalsProbe } from './window-close-guard'
 import { runningTerminalCount, shutdownTerminals } from './terminal/terminal-service'
@@ -198,7 +202,7 @@ async function performGracefulShutdown(): Promise<void> {
   }
 }
 
-setRunningTerminalsProbe(runningTerminalCount)
+setRunningTerminalsProbe(() => runningTerminalCount() + remoteTerminalCount())
 
 app.on('before-quit', (event) => {
   // A running turn must get the close-decision prompt first (tray Quit / Cmd+Q).
@@ -206,7 +210,13 @@ app.on('before-quit', (event) => {
   if (!guardAppQuit(event)) return
   destroyAppTray()
   event.preventDefault()
-  void gracefulShutdownWorkers().finally(() => {
+  try { shutdownSshWorkspace() } catch { console.warn('[Main] SSH connection cleanup failed') }
+  void Promise.allSettled([gracefulShutdownWorkers(), routineRuntime.shutdown(), chatRuntime.shutdown(), remoteCodeRuntime.shutdown()]).then((results) => {
+    const routineShutdown = results[1]
+    if (routineShutdown.status === 'rejected' || !routineShutdown.value.settled) console.warn('[Main] Routine shutdown did not confirm settlement; persisted run outcomes remain uncertain')
+    const chatShutdown = results[2]
+    if (chatShutdown.status === 'rejected' || !chatShutdown.value.settled) console.warn('[Main] Chat shutdown did not confirm settlement; saved sessions may be interrupted')
+    if (results[3].status === 'rejected') console.warn('[Main] Remote Code shutdown did not confirm cleanup; remote outcomes may be interrupted')
     app.exit(0)
   })
 })

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useCodeWorkspaceActive } from '@renderer/features/shell/workspace-activity'
 import { X } from '@renderer/components/icons'
 import { selectSessionAttention, type SessionAttention } from '@renderer/lib/session-attention'
 import { sessionFilesEqual } from '@renderer/lib/session-file-key'
@@ -181,19 +182,20 @@ function SplitGlyph({ side }: { side: 'right' | 'bottom' }) {
 }
 
 function LayoutMenu({ paneId, onClose }: { paneId: string; onClose: () => void }) {
+  const workspaceActive = useCodeWorkspaceActive()
   const { t } = useTranslation()
   const count = useSplitStore((s) => s.panes.length)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const away = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose()
-    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const esc = (e: KeyboardEvent) => workspaceActive && e.key === 'Escape' && onClose()
     document.addEventListener('mousedown', away)
     document.addEventListener('keydown', esc)
     return () => {
       document.removeEventListener('mousedown', away)
       document.removeEventListener('keydown', esc)
     }
-  }, [onClose])
+  }, [onClose, workspaceActive])
   const full = count >= MAX_PANES
   return (
     <div ref={ref} role="menu" className="split-menu absolute right-1 top-8 z-[70] w-60 rounded-lg p-1.5" data-split-menu="">
@@ -490,6 +492,7 @@ function FocusTab({ pane, index, active }: { pane: Pane; index: number; active: 
  * when small, a status card. Too little room for the active pane switches to tabs.
  */
 export function SplitView({ children }: { children: ReactNode }) {
+  const workspaceActive = useCodeWorkspaceActive()
   const { t } = useTranslation()
   const layout = useSplitStore()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -500,7 +503,7 @@ export function SplitView({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!mod(e)) return
+      if (!workspaceActive || !mod(e)) return
       if ((e.code === 'Backslash' || e.key === '\\') && !e.altKey) {
         e.preventDefault()
         splitActions.open(null, { side: e.shiftKey ? 'bottom' : 'right' })
@@ -512,7 +515,7 @@ export function SplitView({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [workspaceActive])
 
   const multi = layout.panes.length > 1
   const focus = multi && needsFocusMode(layout, w, h)

@@ -9,6 +9,7 @@ import { routeDesktopSlashBeforeSend } from '@renderer/lib/slash-desktop-router'
 import { abortAgentTurn, isComposerAbortCooldown } from '@renderer/lib/composer-abort'
 import { extensionUiBlocksComposer, useExtensionUIStore } from '@renderer/stores/extension-ui-store'
 import type { useComposerInputHistory } from './use-composer-input-history'
+import { composerSendErrorDescription } from './send-error'
 import { currentSessionCapabilities } from '@renderer/lib/session-capabilities'
 import {
   composerDraftContextKey,
@@ -188,7 +189,7 @@ export function useComposerSend(opts: {
               updateFromEditor()
             }
           }
-          toast.error(t('composer:toast.sendFailed'))
+          toast.error(t('composer:toast.sendFailed'), { description: composerSendErrorDescription(e), duration: 8000 })
         }
       } finally {
         sendingRef.current = false

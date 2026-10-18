@@ -1,48 +1,15 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { RefreshCw } from '@renderer/components/icons'
-import { cn } from '@renderer/lib/utils'
-import { reloadCurrentSessionData } from '@renderer/lib/reload-current-session-data'
-import { toast } from 'sonner'
+import { PanelRightOpen } from '@renderer/components/icons'
+import { useUIStore } from '@renderer/stores/ui-store'
+import { useRightPanelHidden } from '@renderer/lib/use-right-panel-hidden'
 
-/**
- * 浮在对话区右上角。
- * Cursor UI 实验：右栏收起时由窄轨承担展开入口，此处只保留「刷新」；展开时仍显示收起按钮。
- */
-export function MainColRightPanelToggle() {
-  const { t } = useTranslation()
-  const [reloading, setReloading] = useState(false)
-
-  const onReload = async () => {
-    if (reloading) return
-    setReloading(true)
-    try {
-      const r = await reloadCurrentSessionData()
-      if (r.ok) toast.success(t('common:sessionReload.success'))
-      else toast.error(r.error || t('common:sessionReload.failed'))
-    } finally {
-      setReloading(false)
-    }
-  }
-
-  const btnBase =
-    'electron-no-drag chrome-icon-btn flex h-7 w-7 items-center justify-center rounded-md border border-border/50 shadow-sm text-foreground-secondary disabled:opacity-50'
-
-  return (
-    <div
-      className="absolute right-3 top-2 z-20 flex flex-col gap-1"
-      style={{ background: 'transparent' }}
-    >
-      <button
-        type="button"
-        onClick={() => void onReload()}
-        disabled={reloading}
-        title={t('common:sessionReload.title')}
-        className={cn(btnBase, 'transition-colors hover:bg-[var(--bg-hover)] hover:text-foreground')}
-        style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
-      >
-        <RefreshCw className={cn('h-3.5 w-3.5', reloading && 'animate-spin')} />
-      </button>
-    </div>
-  )
+/** One edge control; feature tabs live inside the drawer, never above the conversation. */
+export function MainColRightPanelToggle({ disabled = false, panelIds }: { disabled?: boolean; panelIds?: string[] }) {
+  const hidden = useRightPanelHidden()
+  if (!hidden) return null
+  return <button type="button" className="workspace-panel-edge-toggle electron-no-drag" aria-label="Open workspace panel" aria-controls="workspace-panel-drawer" aria-expanded={false} data-app-tooltip="Open workspace panel" disabled={disabled} onClick={() => {
+    const store = useUIStore.getState()
+    const available = panelIds ?? store.rightPanelCatalog.filter((item) => store.rightPanelPrefs[item.id]).map((item) => item.id)
+    if (!available.includes(store.activePanel) && available[0]) store.setActivePanel(available[0])
+    store.revealRightPanel()
+  }}><PanelRightOpen size={18} /></button>
 }

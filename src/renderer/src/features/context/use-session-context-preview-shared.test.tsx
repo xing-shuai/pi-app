@@ -33,6 +33,23 @@ describe('useSessionContextPreview shared requests', () => {
     })
   })
 
+  it('recovers a superseded restored-remote read once, shared by all consumers', async () => {
+    const workspace = '/__pi_ssh__/fixture/root/project', file = workspace + '/.sessions/a.jsonl'
+    useUIStore.setState({ currentWorkspace: workspace, historySessionFile: file, runState: { status: 'idle', toolCount: 0, errorCount: 0, model: 'fixture/model', thinkingLevel: 'high' } })
+    vi.mocked(ipcClient.invoke).mockRejectedValueOnce(new Error('Remote session hydration superseded')).mockResolvedValue({ preview: { sessionFile: file, messageCount: 3, estimatedChars: 30, remoteContext: { model: 'fixture/model', contextUsage: { tokens: 156, contextWindow: 64000 } } } })
+    const first = renderHook(() => useSessionContextPreview()), second = renderHook(() => useSessionContextPreview())
+    await waitFor(() => expect(first.result.current.preview?.remoteContext?.contextUsage?.contextWindow).toBe(64000))
+    expect(second.result.current.preview?.remoteContext?.contextUsage?.tokens).toBe(156)
+    expect(contextPreviewCalls()).toBe(2)
+  })
+  it('does not turn a permanently unavailable preview into a retry loop', async () => {
+    vi.mocked(ipcClient.invoke).mockRejectedValue(new Error('unavailable'))
+    const hook = renderHook(() => useSessionContextPreview())
+    await waitFor(() => expect(contextPreviewCalls()).toBe(2))
+    await act(async () => { await Promise.resolve() })
+    expect(hook.result.current.preview).toBeNull()
+    expect(contextPreviewCalls()).toBe(2)
+  })
   // Composer metrics, the Run panel and the Context panel all show the same session context.
   it('issues one context.preview for concurrent consumers of the same session', async () => {
     const hooks = [

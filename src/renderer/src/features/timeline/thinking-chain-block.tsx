@@ -114,6 +114,7 @@ export function ThinkingChainBlock({
     <div className="mb-0">
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => {
           if (placeholder || !body) return
           setUserOpen((prev) => !prev)

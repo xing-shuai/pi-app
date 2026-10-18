@@ -3,6 +3,8 @@ import ReactDOM from 'react-dom/client'
 import './styles/geist-mono.css'
 import './styles/globals.css'
 import './styles/scrollbar-overlay.css'
+import './styles/compact-scroll-wrap.css'
+import './components/ui/app-tooltip-host.css'
 import { hydrateIconThemeFromSettings } from './components/icons'
 import { hydrateLanguageFromSettings } from './lib/i18n'
 import './lib/startup-toast-guard'
@@ -14,7 +16,7 @@ ensureExtensionUIChannel()
 ensureAppUpdateNotify()
 
 performance.mark('pi:boot-script')
-const App = React.lazy(() => import('./app/app'))
+const App = React.lazy(() => import('./app/product-shell'))
 
 /** Fade out and drop the cold-start splash from index.html (never blocks the UI for long). */
 function dismissBootSplash(): void {

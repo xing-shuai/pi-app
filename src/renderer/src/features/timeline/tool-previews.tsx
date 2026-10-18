@@ -2,7 +2,7 @@
 // 主流 主流 Agent 桌面与 IDE：默认折叠、可展开、diff、Shiki 语法高亮
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { ipcClient } from '@renderer/lib/ipc-client'
+import { openCodeFile } from '@renderer/lib/code-file-actions'
 import { formatMcpOutput } from './mcp-tool'
 import { FileText, Search, Terminal, Plus, Minus, FolderSearch } from '@renderer/components/icons'
 import { cn } from '@renderer/lib/utils'
@@ -318,7 +318,7 @@ export function McpToolPreview({ item }: { item: ToolTimelineItem }) {
           <button
             type="button"
             className="shrink-0 rounded px-1 hover:text-foreground"
-            onClick={() => ipcClient.invoke('shell.openPath', { path: fullOutputPath }).catch(() => {})}
+            onClick={() => openCodeFile(fullOutputPath).catch(() => {})}
           >
             {t('timeline:toolOpen')}
           </button>

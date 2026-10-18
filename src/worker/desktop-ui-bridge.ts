@@ -2,6 +2,7 @@
 
 import type { EventBus, Theme } from '@earendil-works/pi-coding-agent'
 import { randomUUID } from 'node:crypto'
+import { extensionInputPresentation, skipAgentNameOnboarding } from '@shared/extension-input'
 import type {
   ExtensionUIQuestion,
   ExtensionUIQuestionnaireResult,
@@ -18,7 +19,7 @@ export const ASK_USER_PROMPT_EVENT = 'rpiv:ask-user:prompt'
 export type ExtensionUIRequest =
   | { id: string; method: 'select'; title: string; options: string[]; timeout?: number }
   | { id: string; method: 'confirm'; title: string; message: string; timeout?: number }
-  | { id: string; method: 'input'; title: string; placeholder?: string; timeout?: number }
+  | { id: string; method: 'input'; title: string; placeholder?: string; defaultValue?: string; timeout?: number }
   | { id: string; method: 'editor'; title: string; prefill?: string }
   | { id: string; method: 'notify'; message: string; notifyType?: 'info' | 'warning' | 'error' }
   | {
@@ -182,15 +183,19 @@ export function createDesktopUIBridge(
         { ...opts, ...dismissOpts },
       ),
 
-    input: (title: string, placeholder?: string, opts?: { signal?: AbortSignal; timeout?: number }) =>
-      createDialogPromise(
+    input: (title: string, placeholder?: unknown, opts?: { signal?: AbortSignal; timeout?: number }) => {
+      // This optional remote-pi setup is explicitly unwanted in the desktop client.
+      // Returning undefined cancels the entire wizard; it does not activate a relay.
+      if (skipAgentNameOnboarding(title, placeholder)) return Promise.resolve(undefined)
+      return createDialogPromise(
         emitReq,
         pending,
-        { id: randomUUID(), method: 'input', title, placeholder, timeout: opts?.timeout },
+        { id: randomUUID(), method: 'input', title, ...extensionInputPresentation(placeholder), timeout: opts?.timeout },
         (r) => (r.cancelled ? undefined : r.value),
         undefined,
         { ...opts, ...dismissOpts },
-      ),
+      )
+    },
 
     notify: (message: string, notifyType?: 'info' | 'warning' | 'error') => {
       emitReq({ id: randomUUID(), method: 'notify', message, notifyType })

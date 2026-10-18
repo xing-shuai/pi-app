@@ -29,11 +29,11 @@ export function groupExpanded(sessionMap: Record<string, boolean> | undefined, g
 }
 
 /**
- * Tools that stay visible under a collapsed summary: only open questions, which need the
- * user's answer. Failures are counted on the summary line instead of listed.
+ * Attention rows must remain visible even when their enclosing activity is closed.
+ * Never bury a failure, a running tool, or an extension waiting for the user.
  */
 export function attentionTools(tools: ToolTimelineItem[]): ToolTimelineItem[] {
-  return tools.filter((tool) => tool.extensionUiSuspended)
+  return tools.filter((tool) => tool.extensionUiSuspended || tool.isError || tool.toolPhase === 'start' || tool.toolPhase === 'update')
 }
 
 /**
@@ -63,15 +63,15 @@ function ToolGroupSummaryImpl({
   })
   const setToolCallExpanded = useUIStore((s) => s.setToolCallExpanded)
   const attention = useMemo(() => attentionTools(tools), [tools])
-  const fileChanges = useUIStore((s) => s.fileChanges)
   const workspace = useUIStore((s) => s.currentWorkspace)
 
   const failedCount = tools.filter((tool) => tool.isError).length
   const hasError = failedCount > 0
 
   const summary = useMemo(
-    () => buildToolListActivitySummary(tools, fileChanges, workspace),
-    [tools, fileChanges, workspace],
+    // Session-wide file events do not belong to this particular activity slice.
+    () => buildToolListActivitySummary(tools, [], workspace),
+    [tools, workspace],
   )
 
   const activityLabel = useMemo(() => {
@@ -117,8 +117,15 @@ function ToolGroupSummaryImpl({
     return legacy
   }, [clusterChildren, thinkingText, foldedAssistantTexts, tools])
 
+  // A lone call already is a disclosure with its real arguments; do not add a
+  // second fold (or replace its filename with a generic one-file count).
+  if (orderedChildren.length === 1 && orderedChildren[0].kind === 'tool') {
+    const tool = tools[0]
+    return <ToolCallRow item={tool} autoExpandedInBudget={!!autoExpandedToolIds?.has(tool.id)} />
+  }
+
   return (
-    <div className="py-0">
+    <div className="timeline-tool-group py-0">
       <button
         type="button"
         aria-expanded={userExpanded}
@@ -147,14 +154,14 @@ function ToolGroupSummaryImpl({
         />
       </button>
       {!userExpanded && attention.length > 0 ? (
-        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
+        <div className="timeline-group-attention ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
           {attention.map((tool) => (
             <ToolCallRow key={toolKey(tool)} item={tool} compact />
           ))}
         </div>
       ) : null}
       {userExpanded ? (
-        <div className="ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
+        <div className="timeline-group-details ml-3 mt-0.5 space-y-0.5 border-l border-border/12 pl-1.5">
           {orderedChildren.map((child) => {
             if (child.kind === 'thinking') {
               return (

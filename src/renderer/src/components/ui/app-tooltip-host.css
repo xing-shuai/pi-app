@@ -1,0 +1,34 @@
+/* Intentionally unlayered and scoped: import after globals.css. No native title rules. */
+.app-tooltip-portal {
+  position: static;
+  pointer-events: none;
+}
+
+.app-tooltip-bubble {
+  position: fixed;
+  z-index: 950;
+  visibility: hidden; /* measured in layout effect before becoming visible */
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(320px, calc(100vw / var(--ui-zoom, 1) - 16px));
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid #444440;
+  border-radius: 8px;
+  background: #262625;
+  color: #eeeeec;
+  box-shadow: 0 3px 12px rgb(0 0 0 / 20%);
+  font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+  /* No translate animation: measured bounds must be the painted bounds at any zoom. */
+}

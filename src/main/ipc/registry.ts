@@ -1,6 +1,6 @@
 import { ipcMain, type BrowserWindow } from 'electron'
 import type { AppEvent } from '@shared/app-events'
-import { z, type ZodSchema } from 'zod'
+import { z } from 'zod'
 
 /** Documented JSON invoke shape from preload (see doc/IPC-CONTRACTS.md). */
 export type IpcInvokeBody = Record<string, unknown>
@@ -9,6 +9,14 @@ export type IpcInvokeBody = Record<string, unknown>
 export type IpcHandlerFn = (request: any) => Promise<any>
 
 const handlers = new Map<string, IpcHandlerFn>()
+export type IpcInvokeRoute = { handled: false } | { handled: true; value: unknown }
+let invokeRouter: ((channel: string, request: unknown) => Promise<IpcInvokeRoute>) | undefined
+/** Environment routing precedes local validation/IO. Unknown remote namespaces must fail closed. */
+export function setIpcInvokeRouter(router: (channel: string, request: unknown) => Promise<IpcInvokeRoute>): void { invokeRouter = router }
+async function dispatch(channel: string, request: unknown, handler: IpcHandlerFn): Promise<unknown> {
+  const routed = await invokeRouter?.(channel, request)
+  return routed?.handled ? routed.value : handler(request)
+}
 
 /**
  * Dev diagnostics (PI_PERF_TRACE=1): per-channel timings — `sync` is how long the handler held the
@@ -34,7 +42,7 @@ export function registerHandler(channel: string, handler: IpcHandlerFn): void {
   ipcMain.handle(channel, async (_event, request) => {
     const started = PERF_TRACE ? Date.now() : 0
     try {
-      const pending = handler(request as IpcInvokeBody)
+      const pending = dispatch(channel, request, handler)
       if (!PERF_TRACE) return await pending
       const sync = Date.now() - started
       const result = await pending
@@ -51,7 +59,7 @@ export function registerHandler(channel: string, handler: IpcHandlerFn): void {
 /** Register a handler with Zod schema validation on the input. */
 export function registerHandlerWithSchema<T>(
   channel: string,
-  schema: ZodSchema<T>,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
   handler: (request: T) => Promise<unknown>,
 ): void {
   registerHandler(channel, async (request) => {
@@ -71,7 +79,7 @@ export function registerHandlerWithSchema<T>(
 export async function invokeHandler<T = unknown>(channel: string, request?: IpcInvokeBody): Promise<T> {
   const handler = handlers.get(channel)
   if (!handler) throw new Error(`No IPC handler for ${channel}`)
-  return (await handler(request ?? {})) as T
+  return (await dispatch(channel, request ?? {}, handler)) as T
 }
 
 export function sendEvent(win: BrowserWindow, event: AppEvent): void {

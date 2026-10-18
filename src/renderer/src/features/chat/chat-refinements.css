@@ -1,0 +1,67 @@
+/* Chat-only typography. Keep the reference empty-state and composer geometry intact. */
+.chat-product.reference-chat {
+  --prose-font: var(--font-sans);
+  --chat-font-size: 16px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+}
+.chat-product.reference-chat .chat-message {
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  margin: 0 0 24px;
+}
+.chat-product.reference-chat .chat-message.assistant { padding: 0; background: transparent; border: 0; }
+.chat-product.reference-chat .chat-message.user { width: fit-content; max-width: 100%; margin-left: auto; padding: 12px 18px; }
+/* Explicit descendants also cover a future .ssh-markdown wrapper and global prose preferences. */
+.chat-product.reference-chat .chat-message-prose,
+.chat-product.reference-chat .chat-message-prose :where(*) { font-family: var(--font-sans); }
+.chat-product.reference-chat .chat-message-prose :is(p, ul, ol, li, blockquote, table) { font-size: 16px; line-height: 1.65; }
+.chat-product.reference-chat .chat-message-prose :is(p, ul, ol, blockquote) { margin: 10px 0; }
+.chat-product.reference-chat .chat-message-prose :is(h1, h2, h3, h4, h5, h6) { font-weight: 600; line-height: 1.4; margin: 20px 0 10px; }
+.chat-product.reference-chat .chat-message-prose h1 { font-size: 24px; }
+.chat-product.reference-chat .chat-message-prose h2 { font-size: 20px; }
+.chat-product.reference-chat .chat-message-prose :is(h3, h4, h5, h6) { font-size: 18px; }
+.chat-product.reference-chat .chat-message-prose > :first-child { margin-top: 0; }
+.chat-product.reference-chat .chat-message-prose > :last-child { margin-bottom: 0; }
+.chat-product.reference-chat .chat-message-prose :is(pre, code, pre *, code *) { font-family: var(--font-mono); font-size: 14px; }
+.chat-product.reference-chat .chat-message-prose code:not(pre code) { padding: 2px 5px; border-radius: 4px; background: var(--code-bg); }
+.chat-product.reference-chat .chat-message-prose pre { line-height: 1.6; }
+.chat-product.reference-chat .reference-sidebar-nav > button > small,
+.chat-product.reference-chat .reference-account small,
+.chat-product.reference-chat .reference-avatar,
+.chat-product.reference-chat .chat-attachments > span,
+.chat-product.reference-chat .product-error,
+.chat-product.reference-chat .product-modal-actions button { font-size: 14px; }
+.chat-product.reference-chat .product-modal input,
+.chat-product.reference-chat .product-settings-link { font-family: var(--font-sans); font-size: 16px; }
+.chat-product.reference-chat .reference-chat-session-header > button { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-product.reference-chat .reference-chat-session-header > span { flex-shrink: 0; margin-left: 16px; }
+.chat-product.reference-chat .reference-chat-model-controls { flex-shrink: 1; }
+.chat-locked-model { min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 16px/1.5 var(--font-sans); }
+.chat-model-trigger { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 3px 5px; border-radius: 6px; color: var(--text-primary); font: 16px/1.5 var(--font-sans); }
+.chat-model-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-model-trigger > svg { flex-shrink: 0; }
+.chat-model-trigger:hover:not(:disabled) { background: var(--bg-hover); }
+.chat-model-trigger:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
+/* Portaled dialog/listbox roles participate in the native BrowserView overlay observer. */
+.chat-model-popover { position: fixed; z-index: 510; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-base); border-radius: 12px; background: var(--bg-base); color: var(--text-primary); box-shadow: 0 12px 40px #0003; font: 16px/1.5 var(--font-sans); }
+.chat-model-search { display: flex; align-items: center; gap: 9px; flex-shrink: 0; padding: 12px 14px; border-bottom: 1px solid var(--border-base); color: var(--text-secondary); }
+.chat-model-search input { min-width: 0; width: 100%; border: 0; background: transparent; outline: none; color: var(--text-primary); font: 16px/1.5 var(--font-sans); }
+.chat-model-search:focus-within { box-shadow: inset 0 -2px var(--text-secondary); }
+.chat-model-list { overflow-y: auto; min-height: 0; padding: 5px; overscroll-behavior: contain; }
+.chat-model-provider { padding: 7px 9px 4px; color: var(--text-secondary); font-size: 14px; overflow-wrap: anywhere; }
+.chat-model-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 9px; border-radius: 7px; text-align: left; color: var(--text-primary); }
+.chat-model-option[data-active="true"] { background: var(--bg-hover, var(--surface-sidebar)); }
+.chat-model-option[aria-selected="true"] .chat-model-name { font-weight: 600; }
+.chat-model-option > span { min-width: 0; flex: 1; }
+.chat-model-option > svg { flex-shrink: 0; }
+.chat-model-name { display: block; font-size: 16px; overflow-wrap: anywhere; }
+.chat-model-id { display: block; font-size: 14px; color: var(--text-secondary); overflow-wrap: anywhere; }
+.chat-model-empty { margin: 0; padding: 18px 14px; font-size: 14px; color: var(--text-secondary); }
+.chat-model-note { flex-shrink: 0; margin: 0; padding: 9px 14px; border-top: 1px solid var(--border-base); color: var(--text-secondary); font-size: 14px; }
+@media (max-width: 900px) {
+  .chat-product.reference-chat .reference-chat-composer-meta { flex-wrap: wrap; gap: 4px 12px; height: auto; min-height: 28px; font-size: 16px; }
+  .chat-product.reference-chat .chat-locked-model { max-width: 160px; }
+  .chat-product.reference-chat .reference-chat-greeting h1 { font-size: clamp(18px, 3vw, 24px); }
+}

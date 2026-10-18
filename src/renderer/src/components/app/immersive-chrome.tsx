@@ -11,7 +11,9 @@ import { isMac, MAC_TRAFFIC_LIGHTS_SPACER_CLASS } from '@renderer/lib/platform'
 /** 无边框窗口顶栏：可拖拽区域 + 侧栏开关（主对话页无厚重 TopBar；无运行绿点/状态条） */
 export function ImmersiveChrome({
   projectName,
+  embedded = false,
 }: {
+  embedded?: boolean
   projectName?: string
   /** @deprecated ignored — status strip removed for lower chrome noise */
   isRunning?: boolean
@@ -29,7 +31,7 @@ export function ImmersiveChrome({
       style={{ background: 'color-mix(in srgb, var(--surface-sidebar) 92%, transparent)' }}
     >
       <div className="electron-no-drag flex items-center gap-1">
-        {isMac && <div aria-hidden className={MAC_TRAFFIC_LIGHTS_SPACER_CLASS} />}
+        {isMac && !embedded && <div aria-hidden className={MAC_TRAFFIC_LIGHTS_SPACER_CLASS} />}
         <button
           type="button"
           onClick={toggleSidebar}
@@ -70,7 +72,7 @@ export function ImmersiveChrome({
         >
           <PanelRight className="h-3.5 w-3.5" />
         </button>
-        <WindowControls className="-mr-2 border-l border-border/40 pl-0.5" />
+        {!embedded && <WindowControls className="-mr-2 border-l border-border/40 pl-0.5" />}
       </div>
     </div>
   )

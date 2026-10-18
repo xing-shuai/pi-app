@@ -2,6 +2,10 @@ import type { AppEvent } from '@shared/app-events'
 import type { AppUpdateAvailableInfo, AppUpdateDownloadProgress } from '@shared/app-update'
 import type { WorkerExitInfo } from '@renderer/lib/worker-exit-runtime'
 import type { BrowserEvent } from '@shared/browser-types'
+import type { RemoteCodeEnvironmentEvent } from '@shared/remote-code'
+import type { SshWorkspaceEvent } from '@shared/ssh-workspace'
+import type { ChatEvent } from '@shared/chat-types'
+import type { RoutineEvent } from '@shared/routine-types'
 
 declare global {
   interface Window {
@@ -20,6 +24,10 @@ declare global {
       onAppUpdateDownloadProgress?: (callback: (info: AppUpdateDownloadProgress) => void) => () => void
       onGitWorkspaceChanged: (callback: (payload: { cwd: string }) => void) => () => void
       onBrowserEvent?: (callback: (event: BrowserEvent) => void) => () => void
+      onCodeEnvironmentEvent?: (callback: (event: RemoteCodeEnvironmentEvent) => void) => () => void
+      onSshEvent?: (callback: (event: SshWorkspaceEvent) => void) => () => void
+      onChatEvent?: (callback: (event: ChatEvent) => void) => () => void
+      onRoutineEvent?: (callback: (event: RoutineEvent) => void) => () => void
       onCloseRequested?: (callback: (info: { isStreaming: boolean; terminals?: number }) => void) => () => void
       onNotificationOpenSession?: (
         callback: (payload: {
@@ -45,7 +53,7 @@ class IpcClientImpl {
       console.warn(`[IPC] piDesktop not available, stubbing ${method}`)
       return {}
     }
-    return window.piDesktop.invoke(`ipc:${method}`, request)
+    return window.piDesktop.invoke(method.startsWith('ipc:') ? method : `ipc:${method}`, request)
   }
 }
 
@@ -57,6 +65,10 @@ export function onAppEvent(callback: (event: AppEvent) => void): () => void {
     return () => {}
   }
   return window.piDesktop.onEvent(callback)
+}
+
+export function onSshEvent(callback: (event: SshWorkspaceEvent) => void): () => void {
+  return window.piDesktop?.onSshEvent?.(callback) || (() => {})
 }
 
 export function onBrowserEvent(callback: (event: BrowserEvent) => void): () => void {

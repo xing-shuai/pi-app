@@ -1,6 +1,13 @@
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionContextMenuPortal } from './session-context-menu'
+import { toast } from 'sonner'
+const shellMocks = vi.hoisted(() => ({ clearSessionFocus: vi.fn(), patchSessionView: vi.fn() }))
+const cacheMocks = vi.hoisted(() => ({ clearLiveSessionTimeline: vi.fn(), clearSessionDiskAuthoritative: vi.fn(), clearSessionWidgets: vi.fn() }))
+vi.mock('@renderer/lib/live-session-timeline-cache', () => ({ clearLiveSessionTimeline: cacheMocks.clearLiveSessionTimeline }))
+vi.mock('@renderer/lib/session-disk-authority', () => ({ clearSessionDiskAuthoritative: cacheMocks.clearSessionDiskAuthoritative }))
+vi.mock('@renderer/lib/extension-widget-cache', () => ({ clearSessionWidgets: cacheMocks.clearSessionWidgets }))
+vi.mock('@renderer/lib/session-shell', () => ({ ...shellMocks, getFocusSessionKey: () => uiState.historySessionFile, sessionKeyFromFile: (file: string) => file }))
 
 const invokeMock = vi.fn(async (_method: unknown, _req?: unknown): Promise<unknown> => ({}))
 vi.mock('@renderer/lib/ipc-client', () => ({
@@ -14,7 +21,9 @@ const uiState = vi.hoisted(() => ({
   currentSessionId: null as string | null,
   currentWorkspace: '/proj/current',
   sessionAttention: {} as Record<string, string>,
-  setCurrentSession: () => {},
+  historySessionFile: null as string | null,
+  setCurrentSession: vi.fn(),
+  setHistoryLoading: vi.fn(),
   clearTimeline: () => {},
   loadHistoryItems: () => {},
   setHistoryMeta: () => {},
@@ -46,7 +55,10 @@ const MENU = {
 
 describe('SessionContextMenuPortal mutations refresh the owning workspace', () => {
   afterEach(() => {
-    invokeMock.mockClear()
+    invokeMock.mockReset(); shellMocks.clearSessionFocus.mockClear(); shellMocks.patchSessionView.mockClear()
+    Object.values(cacheMocks).forEach((mock) => mock.mockClear())
+    vi.mocked(toast.success).mockClear(); vi.mocked(toast.error).mockClear()
+    uiState.currentWorkspace = '/proj/current'; uiState.currentSessionId = null; uiState.historySessionFile = null; uiState.setCurrentSession.mockClear(); uiState.setHistoryLoading.mockClear()
     workspaceMocks.switchSessionInPlace.mockClear()
     workspaceMocks.activateWorkspace.mockClear()
   })
@@ -98,6 +110,8 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
       workspaceId: '/proj/a',
     })
     expect(onSessionsChange).toHaveBeenCalledWith('/proj/a')
+    for (const mock of Object.values(cacheMocks)) expect(mock).toHaveBeenCalledExactlyOnceWith('/proj/a/s1.jsonl')
+    expect(shellMocks.patchSessionView).toHaveBeenCalledWith('/proj/a/s1.jsonl', expect.objectContaining({ items: [], phase: 'empty' }))
   })
 
   it('rename refreshes the owning workspace', async () => {
@@ -154,7 +168,7 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
     expect(onSessionsChange).not.toHaveBeenCalled()
   })
 
-  it('delete optimistically removes the entry before the IPC resolves', async () => {
+  it('delete removes the entry only after backend success, never while the IPC is pending', async () => {
     let resolveDelete: (v: unknown) => void = () => {}
     invokeMock.mockImplementation(async (method: unknown) => {
       if (method === 'session.delete') return new Promise<unknown>((r) => (resolveDelete = r))
@@ -177,13 +191,57 @@ describe('SessionContextMenuPortal mutations refresh the owning workspace', () =
       fireEvent.click(screen.getByText('common:confirm'))
     })
 
-    // 乐观移除在 IPC 完成前就已发生
-    expect(onSessionRemoved).toHaveBeenCalledWith({
-      sessionFile: '/proj/a/s1.jsonl',
-      workspacePath: '/proj/a',
-    })
-    await act(async () => {
-      resolveDelete({ ok: true })
-    })
+    expect(onSessionRemoved).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
+    await act(async () => { resolveDelete({ ok: true }) })
+    expect(onSessionRemoved).toHaveBeenCalledWith({ sessionFile: '/proj/a/s1.jsonl', workspacePath: '/proj/a' })
+  })
+
+  it('surfaces refusal and transport errors without claiming success or removing history', async () => {
+    invokeMock.mockRejectedValue(new Error('session_busy: finish the active turn'))
+    const removed = vi.fn()
+    render(<SessionContextMenuPortal menu={MENU} onClose={() => {}} onSessionsChange={() => {}} onSessionRemoved={removed} />)
+    await act(async () => { fireEvent.click(screen.getByText('common:sidebar.delete')) })
+    await act(async () => { fireEvent.click(screen.getByText('common:confirm')) })
+    expect(toast.error).toHaveBeenCalledWith('session_busy: finish the active turn')
+    expect(toast.success).not.toHaveBeenCalled(); expect(removed).not.toHaveBeenCalled()
+    for (const mock of Object.values(cacheMocks)) expect(mock).not.toHaveBeenCalled()
+  })
+
+  it('resets only the still-current exact remote history and never sends a local pending bind', async () => {
+    const target = { ...MENU.target, workspacePath: '/__pi_ssh__/host/root', sessionFile: '/__pi_ssh__/host/root/.sessions/known.jsonl' }
+    Object.assign(uiState, { currentWorkspace: target.workspacePath, currentSessionId: target.sessionId, historySessionFile: target.sessionFile })
+    invokeMock.mockResolvedValue({ ok: true })
+    render(<SessionContextMenuPortal menu={{ ...MENU, target }} onClose={() => {}} onSessionsChange={() => {}} />)
+    await act(async () => { fireEvent.click(screen.getByText('common:sidebar.delete')) })
+    await act(async () => { fireEvent.click(screen.getByText('common:confirm')) })
+    expect(invokeMock).toHaveBeenCalledWith('session.delete', { workspaceId: target.workspacePath, sessionFile: target.sessionFile })
+    expect(uiState.setCurrentSession).toHaveBeenCalledWith(null)
+    expect(uiState.setHistoryLoading).toHaveBeenCalledWith(false)
+    expect(shellMocks.clearSessionFocus).toHaveBeenCalledOnce()
+    expect(invokeMock).not.toHaveBeenCalledWith('session.setPendingBind', expect.anything())
+  })
+
+  it('does not reset a newer focus after an awaited deletion even if the session ID is identical', async () => {
+    let finish!: (value: unknown) => void
+    invokeMock.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    Object.assign(uiState, { currentWorkspace: MENU.target.workspacePath, currentSessionId: MENU.target.sessionId, historySessionFile: MENU.target.sessionFile })
+    render(<SessionContextMenuPortal menu={MENU} onClose={() => {}} onSessionsChange={() => {}} />)
+    await act(async () => { fireEvent.click(screen.getByText('common:sidebar.delete')) })
+    await act(async () => { fireEvent.click(screen.getByText('common:confirm')) })
+    Object.assign(uiState, { currentWorkspace: '/other', historySessionFile: '/other/file.jsonl' })
+    await act(async () => { finish({ ok: true }) })
+    expect(uiState.setCurrentSession).not.toHaveBeenCalled()
+    expect(shellMocks.clearSessionFocus).not.toHaveBeenCalled()
+    expect(invokeMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('disconnected rows explain connect-to-delete without calling any backend', () => {
+    render(<SessionContextMenuPortal menu={{ ...MENU, target: { ...MENU.target, disconnected: true } }} onClose={() => {}} onSessionsChange={() => {}} />)
+    const button = screen.getByRole('button', { name: 'Connect to delete' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', 'Connect to this SSH host before deleting its session')
+    fireEvent.click(button)
+    expect(invokeMock).not.toHaveBeenCalled()
   })
 })

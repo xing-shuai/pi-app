@@ -62,12 +62,14 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
     const runPatch: Record<string, unknown> = {
       status: 'running',
       activeRunId: event.runId,
-      startTime: event.timestamp,
+      startTime: event.runId && event.runId === state.runState.activeRunId && state.runState.startTime ? state.runState.startTime : event.timestamp,
     }
     if (event.model != null && String(event.model).trim()) runPatch.model = event.model
     if (event.thinkingLevel != null && String(event.thinkingLevel).trim()) {
       runPatch.thinkingLevel = event.thinkingLevel
     }
+    if (event.usage) runPatch.usage = event.usage
+    if (event.toolStats) { runPatch.toolCount = event.toolStats.total; runPatch.errorCount = event.toolStats.failed }
     state.setRunState(runPatch)
     const snap = state.workerLiveSnapshot
     if (viewFile) {
@@ -113,6 +115,8 @@ export function handleRun(event: RunEvent, api: StoreApi): boolean {
       status: 'idle',
       lastRunId: prevRun ?? rs.lastRunId,
       lastRunDurationMs: durationMs,
+      ...(event.usage ? { usage: event.usage } : {}),
+      ...(event.toolStats ? { toolCount: event.toolStats.total, errorCount: event.toolStats.failed } : {}),
       activeRunId: undefined,
       activeTool: undefined,
       activeToolStatus: undefined,

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import type { SessionContextPreview } from '@shared/session-context-preview'
+import type { RemoteSessionContext } from '@shared/remote-code'
+type ContextPreview = SessionContextPreview & { remoteContext?: RemoteSessionContext }
 import { ipcClient } from '@renderer/lib/ipc-client'
 import { normalizeSessionFileKey, sessionFilesEqual } from '@renderer/lib/session-file-key'
 import { useUIStore } from '@renderer/stores/ui-store'
@@ -14,7 +16,7 @@ const FRESH_CONTEXT_MS = 2000
  * JSONL (disk), so each consumer fetching on its own tripled that work on every switch and tick.
  */
 type Entry = {
-  preview: SessionContextPreview | null
+  preview: ContextPreview | null
   loading: boolean
   fetchedAt: number
 }
@@ -62,11 +64,15 @@ function ensureContextPreview(
 
   setEntry(key, { ...(current ?? EMPTY), loading: true })
   const request = (async () => {
-    let preview: SessionContextPreview | null = null
+    let preview: ContextPreview | null = null
     try {
       const response = await ipcClient.invoke('context.preview', { sessionFile, workspaceId: workspace })
-      const next = (response?.preview || null) as SessionContextPreview | null
+      const next = (response?.preview || null) as ContextPreview | null
       preview = next && sessionFilesEqual(next.sessionFile, sessionFile) ? next : null
+      const current = useUIStore.getState()
+      if (preview?.remoteContext && current.currentWorkspace === workspace && sessionFilesEqual(current.historySessionFile, sessionFile) && current.runState.model === preview.remoteContext.model) {
+        current.setRunState({ usage: preview.remoteContext.usage })
+      }
     } catch {
       preview = null
     }
@@ -83,6 +89,8 @@ export function useSessionContextPreview(options?: { enabled?: boolean }) {
   const workspace = useUIStore((state) => state.currentWorkspace)
   const sessionFile = useUIStore((state) => state.historySessionFile)
   const historyLoading = useUIStore((state) => state.historyLoading)
+  const model = useUIStore((state) => state.runState.model)
+  const thinkingLevel = useUIStore((state) => state.runState.thinkingLevel)
   const isRunning = useUIStore((state) => state.runState.status === 'running')
   const active = enabled && !!workspace && !!sessionFile && !historyLoading
   const key = active ? entryKey(workspace!, sessionFile!) : null
@@ -98,11 +106,21 @@ export function useSessionContextPreview(options?: { enabled?: boolean }) {
     await ensureContextPreview(workspace!, sessionFile!, { force: true })
   }, [active, workspace, sessionFile])
 
-  // Mount / session switch: reuse a fresh shared preview, else fetch once for every consumer.
+  // Metadata hydration and an Effort change may supersede an in-flight remote read.
+  // Join that read first, then allow ONE fresh attempt if it failed or belongs to the
+  // previous model. Never freeze an idle restored view at a cached null; never poll.
   useEffect(() => {
     if (!active) return
-    void ensureContextPreview(workspace!, sessionFile!)
-  }, [active, workspace, sessionFile])
+    let live = true
+    void ensureContextPreview(workspace!, sessionFile!).then(() => {
+      if (!live) return
+      const cached = entries.get(entryKey(workspace!, sessionFile!))?.preview
+      if (!cached || workspace!.startsWith('/__pi_ssh__/') && cached.remoteContext?.model !== model) {
+        void ensureContextPreview(workspace!, sessionFile!, { force: true })
+      }
+    })
+    return () => { live = false }
+  }, [active, workspace, sessionFile, model, thinkingLevel])
 
   // Turn boundary changes the context; concurrent consumers coalesce on the in-flight request.
   const lastRunning = useRef(isRunning)
